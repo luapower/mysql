@@ -1,4 +1,5 @@
--- Copyright (C) Yichun Zhang (agentzh)
+
+-- Copyright (C) Yichun Zhang (agentzh). BSD license.
 
 local tcp = require'sock'.tcp
 local sha1 = require'sha1'
