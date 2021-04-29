@@ -1,7 +1,7 @@
 
 ## `local mysql = require'mysql_client'`
 
-MySQL client protocol
+MySQL client protocol in Lua. Stolen from OpenResty and modified to work standalone.
 
 ## Status
 
@@ -10,96 +10,37 @@ This library is considered production ready.
 ## Example
 
 ```lua
-local mysql = require "resty.mysql"
-local db, err = mysql:new()
-if not db then
-  ngx.say("failed to instantiate mysql: ", err)
-  return
-end
+local mysql = require'mysql_client'
+local db = assert(mysql:new())
 
-db:set_timeout(1000) -- 1 sec
+assert(db:connect{
+	host = '127.0.0.1',
+	port = 3306,
+	database = 'ngx_test',
+	user = 'ngx_test',
+	password = 'ngx_test',
+	charset = 'utf8',
+	max_packet_size = 1024 * 1024,
+})
 
--- or connect to a unix domain socket file listened
--- by a mysql server:
---     local ok, err, errcode, sqlstate =
---           db:connect{
---              path = "/path/to/mysql.sock",
---              database = "ngx_test",
---              user = "ngx_test",
---              password = "ngx_test" }
+assert(db:query('drop table if exists cats'))
 
-local ok, err, errcode, sqlstate = db:connect{
-  host = "127.0.0.1",
-  port = 3306,
-  database = "ngx_test",
-  user = "ngx_test",
-  password = "ngx_test",
-  charset = "utf8",
-  max_packet_size = 1024 * 1024,
-}
+local res = assert(db:query('create table cats '
+			  .. '(id serial primary key, '
+			  .. 'name varchar(5))'))
 
-if not ok then
-  ngx.say("failed to connect: ", err, ": ", errcode, " ", sqlstate)
-  return
-end
+local res = assert(db:query('insert into cats (name) '
+	.. 'values (\'Bob\'),(\'\'),(null)'))
 
-ngx.say("connected to mysql.")
+print(res.affected_rows, ' rows inserted into table cats ',
+		'(last insert id: ', res.insert_id, ')')
 
-local res, err, errcode, sqlstate =
-  db:query("drop table if exists cats")
-if not res then
-  ngx.say("bad result: ", err, ": ", errcode, ": ", sqlstate, ".")
-  return
-end
+local res = assert(db:query('select * from cats order by id asc', 10))
 
-res, err, errcode, sqlstate =
-  db:query("create table cats "
-			  .. "(id serial primary key, "
-			  .. "name varchar(5))")
-if not res then
-  ngx.say("bad result: ", err, ": ", errcode, ": ", sqlstate, ".")
-  return
-end
+local cjson = require'cjson'
+print(cjson.encode(res))
 
-ngx.say("table cats created.")
-
-res, err, errcode, sqlstate =
-  db:query("insert into cats (name) "
-			  .. "values (\'Bob\'),(\'\'),(null)")
-if not res then
-  ngx.say("bad result: ", err, ": ", errcode, ": ", sqlstate, ".")
-  return
-end
-
-ngx.say(res.affected_rows, " rows inserted into table cats ",
-		"(last insert id: ", res.insert_id, ")")
-
--- run a select query, expected about 10 rows in
--- the result set:
-res, err, errcode, sqlstate =
-  db:query("select * from cats order by id asc", 10)
-if not res then
-  ngx.say("bad result: ", err, ": ", errcode, ": ", sqlstate, ".")
-  return
-end
-
-local cjson = require "cjson"
-ngx.say("result: ", cjson.encode(res))
-
--- put it into the connection pool of size 100,
--- with 10 seconds max idle timeout
-local ok, err = db:set_keepalive(10000, 100)
-if not ok then
-  ngx.say("failed to set keepalive: ", err)
-  return
-end
-
--- or just close the connection right away:
--- local ok, err = db:close()
--- if not ok then
---     ngx.say("failed to close: ", err)
---     return
--- end
+assert(db:close())
 ```
 
 ## API
@@ -133,11 +74,6 @@ The `options` argument is a Lua table holding the following keys:
   * `ssl_verify`: if `true`, then verifies the validity of the server SSL certificate (default to `false`).
   * `compact_arrays`: `true` to use array-of-arrays structure for the result set,
   rather than the default array-of-hashes structure.
-
-### `db:set_timeout(time)`
-
-Sets the timeout (in ms) protection for subsequent operations,
-including the `connect` method.
 
 ### `db:close() -> 1 | nil,err`
 
