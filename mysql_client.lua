@@ -1,4 +1,5 @@
 
+-- MySQL client protocol in Lua.
 -- Copyright (C) Yichun Zhang (agentzh). BSD license.
 
 local tcp = require'sock'.tcp
