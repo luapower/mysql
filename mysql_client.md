@@ -72,8 +72,6 @@ The `options` argument is a Lua table holding the following keys:
   If the server does not have SSL support (or just disabled), the error string
   "ssl disabled on server" will be returned.
   * `ssl_verify`: if `true`, then verifies the validity of the server SSL certificate (default to `false`).
-  * `compact_arrays`: `true` to use array-of-arrays structure for the result set,
-  rather than the default array-of-hashes structure.
 
 ### `db:close() -> 1 | nil,err`
 
@@ -85,7 +83,7 @@ Sends the query to the remote MySQL server without waiting for its replies.
 
 Returns the bytes successfully sent out. Use `read_result()` to read the replies.
 
-### `db:read_result([nrows]) -> res | nil,err,errcode,sqlstate`
+### `db:read_result([nrows,]['compact']) -> res | nil,err,errcode,sqlstate`
 
 Reads in one result returned from the server.
 
@@ -97,8 +95,17 @@ Each row holds key-value pairs for each data fields. For instance,
 
 ```lua
     {
-        { name = "Bob", age = 32, phone = ngx.null },
-        { name = "Marry", age = 18, phone = "10666372"}
+        { name = "Bob", age = 32, phone = mysql.null },
+        { name = "Marry", age = 18, phone = "10666372" }
+    }
+```
+
+If `'compact'` given, it returns an array-of-arrays instead:
+
+```lua
+    {
+        { "Bob", 32, null },
+        { "Marry", 18, "10666372" }
     }
 ```
 
@@ -147,12 +154,6 @@ Returns the MySQL server version string, like `"5.1.64"`.
 
 You should only call this method after successfully connecting to a MySQL server,
 otherwise `nil` will be returned.
-
-### `db:set_compact_arrays(true|false)`
-
-Sets whether to use the "compact-arrays" structure for the resultsets returned
-by subsequent queries. See the `compact_arrays` option for the `connect`
-method for more details.
 
 ### `mysql.quote(s) -> s`
 
