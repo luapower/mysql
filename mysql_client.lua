@@ -261,15 +261,9 @@ local function _recv(self, sz)
 		self.buf = buf
 	end
 	local buf = buf(sz)
-	local sock = self.sock
-	local offset = 0
-	while sz > 0 do
-		local n, err = sock:recv(buf + offset, sz)
-		if not n then return nil, err end
-		sz = sz - n
-		offset = offset + n
-	end
-	return ffi.string(buf, offset)
+	local n, err = self.sock:recvall(buf, sz)
+	if not n then return nil, err end
+	return ffi.string(buf, n)
 end
 
 local function _recv_packet(self)
