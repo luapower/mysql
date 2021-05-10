@@ -261,9 +261,9 @@ local function _recv(self, sz)
 		self.buf = buf
 	end
 	local buf = buf(sz)
-	local n, err = self.sock:recvall(buf, sz)
-	if not n then return nil, err end
-	return ffi.string(buf, n)
+	local ok, err = self.sock:recvall(buf, sz)
+	if not ok then return nil, err end
+	return ffi.string(buf, sz)
 end
 
 local function _recv_packet(self)
