@@ -5,6 +5,7 @@
 
 local sha1 = require'sha1'.sha1
 local bit = require'bit'
+local null = require'cjson'.null
 
 local sub = string.sub
 local strbyte = string.byte
@@ -12,7 +13,6 @@ local strchar = string.char
 local strfind = string.find
 local format = string.format
 local strrep = string.rep
-local null = function() end
 local band = bit.band
 local bxor = bit.bxor
 local bor = bit.bor
@@ -97,10 +97,9 @@ local conn = {}
 local mt = {__index = conn}
 
 -- mysql field value type converters
-local converters = new_tab(0, 9)
+local converters = {}
 
-for i = 0x01, 0x05 do
-	-- tiny, short, long, float, double
+for i = 0x01, 0x05 do -- tiny, short, long, float, double
 	converters[i] = tonumber
 end
 converters[0x00] = tonumber  -- decimal
@@ -559,10 +558,10 @@ function conn:connect(opts)
 
 	local host = opts.host
 	local port = opts.port or 3306
-	ok, err = sock:connect(host, port)
+	ok, err, errcode = sock:connect(host, port)
 
 	if not ok then
-		return nil, 'failed to connect: ' .. err
+		return nil, err, errcode
 	end
 
 	local packet, typ, err = _recv_packet(self)
