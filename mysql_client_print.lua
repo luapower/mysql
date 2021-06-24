@@ -1,5 +1,6 @@
 
---mysql table pretty printing
+--MySQL result pretty printing.
+--Written by Cosmin Apreutesei. Public Domain.
 
 local null = require'cjson'.null
 
