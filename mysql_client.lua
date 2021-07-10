@@ -448,6 +448,7 @@ local function _parse_field_packet(data)
 	col.table, pos = _from_length_coded_str(data, pos)
 	col.orig_table, pos = _from_length_coded_str(data, pos)
 	col.name, pos = _from_length_coded_str(data, pos)
+	col.name = col.name:lower() --preserving namecase is not helpful.
 	col.orig_name, pos = _from_length_coded_str(data, pos)
 	pos = pos + 1 -- ignore the filler
 	col.charsetnr, pos = _get_byte2(data, pos)
