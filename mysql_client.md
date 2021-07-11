@@ -11,9 +11,9 @@ This library is considered production ready.
 
 ```lua
 local mysql = require'mysql_client'
-local db = assert(mysql:new())
+local cn = assert(mysql:new())
 
-assert(db:connect{
+assert(cn:connect{
 	host = '127.0.0.1',
 	port = 3306,
 	database = 'ngx_test',
@@ -23,33 +23,33 @@ assert(db:connect{
 	max_packet_size = 1024 * 1024,
 })
 
-assert(db:query('drop table if exists cats'))
+assert(cn:query('drop table if exists cats'))
 
-local res = assert(db:query('create table cats '
+local res = assert(cn:query('create table cats '
 			  .. '(id serial primary key, '
 			  .. 'name varchar(5))'))
 
-local res = assert(db:query('insert into cats (name) '
+local res = assert(cn:query('insert into cats (name) '
 	.. 'values (\'Bob\'),(\'\'),(null)'))
 
 print(res.affected_rows, ' rows inserted into table cats ',
 		'(last insert id: ', res.insert_id, ')')
 
-local res = assert(db:query('select * from cats order by id asc', 10))
+local res = assert(cn:query('select * from cats order by id asc', 10))
 
 local cjson = require'cjson'
 print(cjson.encode(res))
 
-assert(db:close())
+assert(cn:close())
 ```
 
 ## API
 
-### `mysql:new() -> db | nil,err`
+### `mysql:new() -> cn | nil,err`
 
 Creates a MySQL connection object.
 
-### `db:connect(options) -> ok | nil,err,errcode,sqlstate`
+### `cn:connect(options) -> ok | nil,err,errcode,sqlstate`
 
 Connect to a MySQL server.
 
@@ -73,17 +73,17 @@ The `options` argument is a Lua table holding the following keys:
   "ssl disabled on server" will be returned.
   * `ssl_verify`: if `true`, then verifies the validity of the server SSL certificate (default to `false`).
 
-### `db:close() -> 1 | nil,err`
+### `cn:close() -> 1 | nil,err`
 
 Closes the current mysql connection and returns the status.
 
-### `db:send_query(query) -> bytes | nil,err`
+### `cn:send_query(query) -> bytes | nil,err`
 
 Sends the query to the remote MySQL server without waiting for its replies.
 
 Returns the bytes successfully sent out. Use `read_result()` to read the replies.
 
-### `db:read_result([nrows,]['compact']) -> res | nil,err,errcode,sqlstate`
+### `cn:read_result([nrows,]['compact']) -> res,nil,cols | nil,err,errcode,sqlstate`
 
 Reads in one result returned from the server.
 
@@ -139,7 +139,7 @@ The optional argument `nrows` can be used to specify an approximate number
 of rows for the result set. This value can be used to pre-allocate space
 in the resulting Lua table for the result set. By default, it takes the value 4.
 
-### `db:query(query, [nrows]) -> res, err, errcode, sqlstate`
+### `cn:query(query, [nrows]) -> res,nil,cols | nil,err,errcode,sqlstate`
 
 This is a shortcut for combining the [send_query](#send_query) call
 and the first [read_result](#read_result) call.
@@ -148,7 +148,7 @@ You should always check if the `err` return value  is `again` in case of
 success because this method will only call [read_result](#read_result)
 only once for you. See also [Multi-Resultset Support](#multi-resultset-support).
 
-### `db:server_ver() -> s`
+### `cn:server_ver() -> s`
 
 Returns the MySQL server version string, like `"5.1.64"`.
 

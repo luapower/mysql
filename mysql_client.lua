@@ -357,14 +357,15 @@ local function _from_length_coded_bin(data, pos)
 end
 
 
-local function _from_length_coded_str(data, pos)
+local function _from_length_coded_str(data, pos, lower)
 	local len
 	len, pos = _from_length_coded_bin(data, pos)
 	if not len or len == null then
 		return null, pos
 	end
-
-	return sub(data, pos, pos + len - 1), pos + len
+	local s = sub(data, pos, pos + len - 1)
+	if lower then s = s:lower() end
+	return s, pos + len
 end
 
 
@@ -443,13 +444,12 @@ local AUTO_INCREMENT_FLAG = 512
 local function _parse_field_packet(data)
 	local col = new_tab(0, 2)
 	local pos
-	col.catalog, pos = _from_length_coded_str(data, 1)
-	col.db, pos = _from_length_coded_str(data, pos)
-	col.table, pos = _from_length_coded_str(data, pos)
-	col.orig_table, pos = _from_length_coded_str(data, pos)
-	col.name, pos = _from_length_coded_str(data, pos)
-	col.name = col.name:lower() --preserving namecase is not helpful.
-	col.orig_name, pos = _from_length_coded_str(data, pos)
+	col.catalog, pos = _from_length_coded_str(data, 1, true)
+	col.schema, pos = _from_length_coded_str(data, pos, true)
+	col.table, pos = _from_length_coded_str(data, pos, true)
+	col.orig_table, pos = _from_length_coded_str(data, pos, true)
+	col.name, pos = _from_length_coded_str(data, pos, true)
+	col.orig_name, pos = _from_length_coded_str(data, pos, true)
 	pos = pos + 1 -- ignore the filler
 	col.charsetnr, pos = _get_byte2(data, pos)
 	col.length, pos = _get_byte4(data, pos)
