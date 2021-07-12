@@ -357,17 +357,14 @@ local function _from_length_coded_bin(data, pos)
 end
 
 
-local function _from_length_coded_str(data, pos, lower)
+local function _from_length_coded_str(data, pos)
 	local len
 	len, pos = _from_length_coded_bin(data, pos)
 	if not len or len == null then
 		return null, pos
 	end
-	local s = sub(data, pos, pos + len - 1)
-	if lower then s = s:lower() end
-	return s, pos + len
+	return sub(data, pos, pos + len - 1), pos + len
 end
-
 
 local function _parse_ok_packet(packet)
 	local res = new_tab(0, 5)
@@ -441,15 +438,21 @@ local UNIQUE_KEY_FLAG     = 4
 local UNSIGNED_FLAG       = 32
 local AUTO_INCREMENT_FLAG = 512
 
+local function _parse_field(data, pos)
+	local s, pos = _from_length_coded_str(data, pos)
+	s = s ~= null and s ~= '' and s:lower() or nil
+	return s, pos
+end
+
 local function _parse_field_packet(data)
 	local col = new_tab(0, 2)
 	local pos
-	col.catalog, pos = _from_length_coded_str(data, 1, true)
-	col.schema, pos = _from_length_coded_str(data, pos, true)
-	col.table, pos = _from_length_coded_str(data, pos, true)
-	col.orig_table, pos = _from_length_coded_str(data, pos, true)
-	col.name, pos = _from_length_coded_str(data, pos, true)
-	col.orig_name, pos = _from_length_coded_str(data, pos, true)
+	col.catalog, pos = _parse_field(data, 1)
+	col.schema, pos = _parse_field(data, pos)
+	col.table, pos = _parse_field(data, pos)
+	col.orig_table, pos = _parse_field(data, pos)
+	col.name, pos = _parse_field(data, pos)
+	col.orig_name, pos = _parse_field(data, pos)
 	pos = pos + 1 -- ignore the filler
 	col.charsetnr, pos = _get_byte2(data, pos)
 	col.length, pos = _get_byte4(data, pos)
