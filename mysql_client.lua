@@ -459,11 +459,11 @@ local function _parse_field_packet(data)
 	col.type = strbyte(data, pos)
 	pos = pos + 1
 	col.flags, pos = _get_byte2(data, pos)
-	col.allow_null     = band(col.flags, NOT_NULL_FLAG) == 0
-	col.pri_key        = band(col.flags, PRI_KEY_FLAG) ~= 0
-	col.unique_key     = band(col.flags, UNIQUE_KEY_FLAG) ~= 0
-	col.unsigned       = band(col.flags, UNSIGNED_FLAG) ~= 0
-	col.auto_increment = band(col.flags, AUTO_INCREMENT_FLAG) ~= 0
+	col.not_null       = band(col.flags, NOT_NULL_FLAG) ~= 0 or nil
+	col.pri_key        = band(col.flags, PRI_KEY_FLAG) ~= 0 or nil
+	col.unique_key     = band(col.flags, UNIQUE_KEY_FLAG) ~= 0 or nil
+	col.unsigned       = band(col.flags, UNSIGNED_FLAG) ~= 0 or nil
+	col.auto_increment = band(col.flags, AUTO_INCREMENT_FLAG) ~= 0 or nil
 	col.decimals = strbyte(data, pos)
 	pos = pos + 1
 	local default = sub(data, pos + 2)
