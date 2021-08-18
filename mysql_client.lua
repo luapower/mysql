@@ -3,14 +3,14 @@
 -- Written by Yichun Zhang (agentzh). BSD license.
 -- Modified by Cosmin Apreutesei. Pulbic domain.
 
-local sha1 = require'sha1'.sha1
+local ffi = require'ffi'
 local bit = require'bit'
-local null = require'cjson'.null
+local sha1 = require'sha1'.sha1
+local glue = require'glue'
 
 local sub = string.sub
 local strbyte = string.byte
 local strchar = string.char
-local strfind = string.find
 local format = string.format
 local strrep = string.rep
 local band = bit.band
@@ -20,20 +20,15 @@ local lshift = bit.lshift
 local rshift = bit.rshift
 local tohex = bit.tohex
 local concat = table.concat
-local unpack = unpack
-local setmetatable = setmetatable
-local error = error
-local tonumber = tonumber
+
+local buffer = glue.buffer
+local index = glue.index
+local repl = glue.repl
 
 local ok, new_tab = pcall(require, 'table.new')
 new_tab = ok and new_tab or function() return {} end
 
 local mysql = {}
-
--- constants
-
-local STATE_CONNECTED = 1
-local STATE_COMMAND_SENT = 2
 
 local COM_QUIT = 0x01
 local COM_QUERY = 0x03
@@ -41,73 +36,397 @@ local CLIENT_SSL = 0x0800
 
 local SERVER_MORE_RESULTS_EXISTS = 8
 
--- 16MB - 1, the default max allowed packet size used by libmysqlclient
-local FULL_PACKET_SIZE = 16777215
+local collation_names = {
+	[  1] = 'big5_chinese_ci',
+	[  2] = 'latin2_czech_cs',
+	[  3] = 'dec8_swedish_ci',
+	[  4] = 'cp850_general_ci',
+	[  5] = 'latin1_german1_ci',
+	[  6] = 'hp8_english_ci',
+	[  7] = 'koi8r_general_ci',
+	[  8] = 'latin1_swedish_ci',
+	[  9] = 'latin2_general_ci',
+	[ 10] = 'swe7_swedish_ci',
+	[ 11] = 'ascii_general_ci',
+	[ 12] = 'ujis_japanese_ci',
+	[ 13] = 'sjis_japanese_ci',
+	[ 14] = 'cp1251_bulgarian_ci',
+	[ 15] = 'latin1_danish_ci',
+	[ 16] = 'hebrew_general_ci',
+	[ 18] = 'tis620_thai_ci',
+	[ 19] = 'euckr_korean_ci',
+	[ 20] = 'latin7_estonian_cs',
+	[ 21] = 'latin2_hungarian_ci',
+	[ 22] = 'koi8u_general_ci',
+	[ 23] = 'cp1251_ukrainian_ci',
+	[ 24] = 'gb2312_chinese_ci',
+	[ 25] = 'greek_general_ci',
+	[ 26] = 'cp1250_general_ci',
+	[ 27] = 'latin2_croatian_ci',
+	[ 28] = 'gbk_chinese_ci',
+	[ 29] = 'cp1257_lithuanian_ci',
+	[ 30] = 'latin5_turkish_ci',
+	[ 31] = 'latin1_german2_ci',
+	[ 32] = 'armscii8_general_ci',
+	[ 33] = 'utf8_general_ci',
+	[ 34] = 'cp1250_czech_cs',
+	[ 35] = 'ucs2_general_ci',
+	[ 36] = 'cp866_general_ci',
+	[ 37] = 'keybcs2_general_ci',
+	[ 38] = 'macce_general_ci',
+	[ 39] = 'macroman_general_ci',
+	[ 40] = 'cp852_general_ci',
+	[ 41] = 'latin7_general_ci',
+	[ 42] = 'latin7_general_cs',
+	[ 43] = 'macce_bin',
+	[ 44] = 'cp1250_croatian_ci',
+	[ 45] = 'utf8mb4_general_ci',
+	[ 46] = 'utf8mb4_bin',
+	[ 47] = 'latin1_bin',
+	[ 48] = 'latin1_general_ci',
+	[ 49] = 'latin1_general_cs',
+	[ 50] = 'cp1251_bin',
+	[ 51] = 'cp1251_general_ci',
+	[ 52] = 'cp1251_general_cs',
+	[ 53] = 'macroman_bin',
+	[ 54] = 'utf16_general_ci',
+	[ 55] = 'utf16_bin',
+	[ 56] = 'utf16le_general_ci',
+	[ 57] = 'cp1256_general_ci',
+	[ 58] = 'cp1257_bin',
+	[ 59] = 'cp1257_general_ci',
+	[ 60] = 'utf32_general_ci',
+	[ 61] = 'utf32_bin',
+	[ 62] = 'utf16le_bin',
+	[ 63] = 'binary',
+	[ 64] = 'armscii8_bin',
+	[ 65] = 'ascii_bin',
+	[ 66] = 'cp1250_bin',
+	[ 67] = 'cp1256_bin',
+	[ 68] = 'cp866_bin',
+	[ 69] = 'dec8_bin',
+	[ 70] = 'greek_bin',
+	[ 71] = 'hebrew_bin',
+	[ 72] = 'hp8_bin',
+	[ 73] = 'keybcs2_bin',
+	[ 74] = 'koi8r_bin',
+	[ 75] = 'koi8u_bin',
+	[ 76] = 'utf8_tolower_ci',
+	[ 77] = 'latin2_bin',
+	[ 78] = 'latin5_bin',
+	[ 79] = 'latin7_bin',
+	[ 80] = 'cp850_bin',
+	[ 81] = 'cp852_bin',
+	[ 82] = 'swe7_bin',
+	[ 83] = 'utf8_bin',
+	[ 84] = 'big5_bin',
+	[ 85] = 'euckr_bin',
+	[ 86] = 'gb2312_bin',
+	[ 87] = 'gbk_bin',
+	[ 88] = 'sjis_bin',
+	[ 89] = 'tis620_bin',
+	[ 90] = 'ucs2_bin',
+	[ 91] = 'ujis_bin',
+	[ 92] = 'geostd8_general_ci',
+	[ 93] = 'geostd8_bin',
+	[ 94] = 'latin1_spanish_ci',
+	[ 95] = 'cp932_japanese_ci',
+	[ 96] = 'cp932_bin',
+	[ 97] = 'eucjpms_japanese_ci',
+	[ 98] = 'eucjpms_bin',
+	[ 99] = 'cp1250_polish_ci',
+	[101] = 'utf16_unicode_ci',
+	[102] = 'utf16_icelandic_ci',
+	[103] = 'utf16_latvian_ci',
+	[104] = 'utf16_romanian_ci',
+	[105] = 'utf16_slovenian_ci',
+	[106] = 'utf16_polish_ci',
+	[107] = 'utf16_estonian_ci',
+	[108] = 'utf16_spanish_ci',
+	[109] = 'utf16_swedish_ci',
+	[110] = 'utf16_turkish_ci',
+	[111] = 'utf16_czech_ci',
+	[112] = 'utf16_danish_ci',
+	[113] = 'utf16_lithuanian_ci',
+	[114] = 'utf16_slovak_ci',
+	[115] = 'utf16_spanish2_ci',
+	[116] = 'utf16_roman_ci',
+	[117] = 'utf16_persian_ci',
+	[118] = 'utf16_esperanto_ci',
+	[119] = 'utf16_hungarian_ci',
+	[120] = 'utf16_sinhala_ci',
+	[121] = 'utf16_german2_ci',
+	[122] = 'utf16_croatian_ci',
+	[123] = 'utf16_unicode_520_ci',
+	[124] = 'utf16_vietnamese_ci',
+	[128] = 'ucs2_unicode_ci',
+	[129] = 'ucs2_icelandic_ci',
+	[130] = 'ucs2_latvian_ci',
+	[131] = 'ucs2_romanian_ci',
+	[132] = 'ucs2_slovenian_ci',
+	[133] = 'ucs2_polish_ci',
+	[134] = 'ucs2_estonian_ci',
+	[135] = 'ucs2_spanish_ci',
+	[136] = 'ucs2_swedish_ci',
+	[137] = 'ucs2_turkish_ci',
+	[138] = 'ucs2_czech_ci',
+	[139] = 'ucs2_danish_ci',
+	[140] = 'ucs2_lithuanian_ci',
+	[141] = 'ucs2_slovak_ci',
+	[142] = 'ucs2_spanish2_ci',
+	[143] = 'ucs2_roman_ci',
+	[144] = 'ucs2_persian_ci',
+	[145] = 'ucs2_esperanto_ci',
+	[146] = 'ucs2_hungarian_ci',
+	[147] = 'ucs2_sinhala_ci',
+	[148] = 'ucs2_german2_ci',
+	[149] = 'ucs2_croatian_ci',
+	[150] = 'ucs2_unicode_520_ci',
+	[151] = 'ucs2_vietnamese_ci',
+	[159] = 'ucs2_general_mysql500_ci',
+	[160] = 'utf32_unicode_ci',
+	[161] = 'utf32_icelandic_ci',
+	[162] = 'utf32_latvian_ci',
+	[163] = 'utf32_romanian_ci',
+	[164] = 'utf32_slovenian_ci',
+	[165] = 'utf32_polish_ci',
+	[166] = 'utf32_estonian_ci',
+	[167] = 'utf32_spanish_ci',
+	[168] = 'utf32_swedish_ci',
+	[169] = 'utf32_turkish_ci',
+	[170] = 'utf32_czech_ci',
+	[171] = 'utf32_danish_ci',
+	[172] = 'utf32_lithuanian_ci',
+	[173] = 'utf32_slovak_ci',
+	[174] = 'utf32_spanish2_ci',
+	[175] = 'utf32_roman_ci',
+	[176] = 'utf32_persian_ci',
+	[177] = 'utf32_esperanto_ci',
+	[178] = 'utf32_hungarian_ci',
+	[179] = 'utf32_sinhala_ci',
+	[180] = 'utf32_german2_ci',
+	[181] = 'utf32_croatian_ci',
+	[182] = 'utf32_unicode_520_ci',
+	[183] = 'utf32_vietnamese_ci',
+	[192] = 'utf8_unicode_ci',
+	[193] = 'utf8_icelandic_ci',
+	[194] = 'utf8_latvian_ci',
+	[195] = 'utf8_romanian_ci',
+	[196] = 'utf8_slovenian_ci',
+	[197] = 'utf8_polish_ci',
+	[198] = 'utf8_estonian_ci',
+	[199] = 'utf8_spanish_ci',
+	[200] = 'utf8_swedish_ci',
+	[201] = 'utf8_turkish_ci',
+	[202] = 'utf8_czech_ci',
+	[203] = 'utf8_danish_ci',
+	[204] = 'utf8_lithuanian_ci',
+	[205] = 'utf8_slovak_ci',
+	[206] = 'utf8_spanish2_ci',
+	[207] = 'utf8_roman_ci',
+	[208] = 'utf8_persian_ci',
+	[209] = 'utf8_esperanto_ci',
+	[210] = 'utf8_hungarian_ci',
+	[211] = 'utf8_sinhala_ci',
+	[212] = 'utf8_german2_ci',
+	[213] = 'utf8_croatian_ci',
+	[214] = 'utf8_unicode_520_ci',
+	[215] = 'utf8_vietnamese_ci',
+	[223] = 'utf8_general_mysql500_ci',
+	[224] = 'utf8mb4_unicode_ci',
+	[225] = 'utf8mb4_icelandic_ci',
+	[226] = 'utf8mb4_latvian_ci',
+	[227] = 'utf8mb4_romanian_ci',
+	[228] = 'utf8mb4_slovenian_ci',
+	[229] = 'utf8mb4_polish_ci',
+	[230] = 'utf8mb4_estonian_ci',
+	[231] = 'utf8mb4_spanish_ci',
+	[232] = 'utf8mb4_swedish_ci',
+	[233] = 'utf8mb4_turkish_ci',
+	[234] = 'utf8mb4_czech_ci',
+	[235] = 'utf8mb4_danish_ci',
+	[236] = 'utf8mb4_lithuanian_ci',
+	[237] = 'utf8mb4_slovak_ci',
+	[238] = 'utf8mb4_spanish2_ci',
+	[239] = 'utf8mb4_roman_ci',
+	[240] = 'utf8mb4_persian_ci',
+	[241] = 'utf8mb4_esperanto_ci',
+	[242] = 'utf8mb4_hungarian_ci',
+	[243] = 'utf8mb4_sinhala_ci',
+	[244] = 'utf8mb4_german2_ci',
+	[245] = 'utf8mb4_croatian_ci',
+	[246] = 'utf8mb4_unicode_520_ci',
+	[247] = 'utf8mb4_vietnamese_ci',
+	[248] = 'gb18030_chinese_ci',
+	[249] = 'gb18030_bin',
+	[250] = 'gb18030_unicode_520_ci',
+	[255] = 'utf8mb4_0900_ai_ci',
+	[256] = 'utf8mb4_de_pb_0900_ai_ci',
+	[257] = 'utf8mb4_is_0900_ai_ci',
+	[258] = 'utf8mb4_lv_0900_ai_ci',
+	[259] = 'utf8mb4_ro_0900_ai_ci',
+	[260] = 'utf8mb4_sl_0900_ai_ci',
+	[261] = 'utf8mb4_pl_0900_ai_ci',
+	[262] = 'utf8mb4_et_0900_ai_ci',
+	[263] = 'utf8mb4_es_0900_ai_ci',
+	[264] = 'utf8mb4_sv_0900_ai_ci',
+	[265] = 'utf8mb4_tr_0900_ai_ci',
+	[266] = 'utf8mb4_cs_0900_ai_ci',
+	[267] = 'utf8mb4_da_0900_ai_ci',
+	[268] = 'utf8mb4_lt_0900_ai_ci',
+	[269] = 'utf8mb4_sk_0900_ai_ci',
+	[270] = 'utf8mb4_es_trad_0900_ai_ci',
+	[271] = 'utf8mb4_la_0900_ai_ci',
+	[273] = 'utf8mb4_eo_0900_ai_ci',
+	[274] = 'utf8mb4_hu_0900_ai_ci',
+	[275] = 'utf8mb4_hr_0900_ai_ci',
+	[277] = 'utf8mb4_vi_0900_ai_ci',
+	[278] = 'utf8mb4_0900_as_cs',
+	[279] = 'utf8mb4_de_pb_0900_as_cs',
+	[280] = 'utf8mb4_is_0900_as_cs',
+	[281] = 'utf8mb4_lv_0900_as_cs',
+	[282] = 'utf8mb4_ro_0900_as_cs',
+	[283] = 'utf8mb4_sl_0900_as_cs',
+	[284] = 'utf8mb4_pl_0900_as_cs',
+	[285] = 'utf8mb4_et_0900_as_cs',
+	[286] = 'utf8mb4_es_0900_as_cs',
+	[287] = 'utf8mb4_sv_0900_as_cs',
+	[288] = 'utf8mb4_tr_0900_as_cs',
+	[289] = 'utf8mb4_cs_0900_as_cs',
+	[290] = 'utf8mb4_da_0900_as_cs',
+	[291] = 'utf8mb4_lt_0900_as_cs',
+	[292] = 'utf8mb4_sk_0900_as_cs',
+	[293] = 'utf8mb4_es_trad_0900_as_cs',
+	[294] = 'utf8mb4_la_0900_as_cs',
+	[296] = 'utf8mb4_eo_0900_as_cs',
+	[297] = 'utf8mb4_hu_0900_as_cs',
+	[298] = 'utf8mb4_hr_0900_as_cs',
+	[300] = 'utf8mb4_vi_0900_as_cs',
+	[303] = 'utf8mb4_ja_0900_as_cs',
+	[304] = 'utf8mb4_ja_0900_as_cs_ks',
+	[305] = 'utf8mb4_0900_as_ci',
+	[306] = 'utf8mb4_ru_0900_ai_ci',
+	[307] = 'utf8mb4_ru_0900_as_cs',
+	[308] = 'utf8mb4_zh_0900_as_cs',
+	[309] = 'utf8mb4_0900_bin',
+}
 
--- the following charset map is generated from the following mysql query:
---   SELECT CHARACTER_SET_NAME, ID
---   FROM information_schema.collations
---   WHERE IS_DEFAULT = 'Yes' ORDER BY id;
-local CHARSET_MAP = {
-	_default  = 0,
-	big5      = 1,
-	dec8      = 3,
-	cp850     = 4,
-	hp8       = 6,
-	koi8r     = 7,
-	latin1    = 8,
-	latin2    = 9,
-	swe7      = 10,
-	ascii     = 11,
-	ujis      = 12,
-	sjis      = 13,
-	hebrew    = 16,
-	tis620    = 18,
-	euckr     = 19,
-	koi8u     = 22,
-	gb2312    = 24,
-	greek     = 25,
-	cp1250    = 26,
-	gbk       = 28,
-	latin5    = 30,
-	armscii8  = 32,
-	utf8      = 33,
-	ucs2      = 35,
-	cp866     = 36,
-	keybcs2   = 37,
-	macce     = 38,
-	macroman  = 39,
-	cp852     = 40,
-	latin7    = 41,
-	utf8mb4   = 45,
-	cp1251    = 51,
-	utf16     = 54,
-	utf16le   = 56,
-	cp1256    = 57,
-	cp1257    = 59,
-	utf32     = 60,
-	binary    = 63,
-	geostd8   = 92,
-	cp932     = 95,
-	eucjpms   = 97,
-	gb18030   = 248
+local collation_codes = index(collation_names)
+
+local default_collations = {
+	big5     = 'big5_chinese_ci',
+	dec8     = 'dec8_swedish_ci',
+	cp850    = 'cp850_general_ci',
+	hp8      = 'hp8_english_ci',
+	koi8r    = 'koi8r_general_ci',
+	latin1   = 'latin1_swedish_ci',
+	latin2   = 'latin2_general_ci',
+	swe7     = 'swe7_swedish_ci',
+	ascii    = 'ascii_general_ci',
+	ujis     = 'ujis_japanese_ci',
+	sjis     = 'sjis_japanese_ci',
+	hebrew   = 'hebrew_general_ci',
+	tis620   = 'tis620_thai_ci',
+	euckr    = 'euckr_korean_ci',
+	koi8u    = 'koi8u_general_ci',
+	gb2312   = 'gb2312_chinese_ci',
+	greek    = 'greek_general_ci',
+	cp1250   = 'cp1250_general_ci',
+	gbk      = 'gbk_chinese_ci',
+	latin5   = 'latin5_turkish_ci',
+	armscii8 = 'armscii8_general_ci',
+	utf8     = 'utf8_general_ci',
+	ucs2     = 'ucs2_general_ci',
+	cp866    = 'cp866_general_ci',
+	keybcs2  = 'keybcs2_general_ci',
+	macce    = 'macce_general_ci',
+	macroman = 'macroman_general_ci',
+	cp852    = 'cp852_general_ci',
+	latin7   = 'latin7_general_ci',
+	cp1251   = 'cp1251_general_ci',
+	utf16    = 'utf16_general_ci',
+	utf16le  = 'utf16le_general_ci',
+	cp1256   = 'cp1256_general_ci',
+	cp1257   = 'cp1257_general_ci',
+	utf32    = 'utf32_general_ci',
+	binary   = 'binary',
+	geostd8  = 'geostd8_general_ci',
+	cp932    = 'cp932_japanese_ci',
+	eucjpms  = 'eucjpms_japanese_ci',
+	gb18030  = 'gb18030_chinese_ci',
+	utf8mb4  = 'utf8mb4_0900_ai_ci',
+}
+
+local buffer_type_names = {
+	[  0] = 'decimal',
+	[  1] = 'tiny',
+	[  2] = 'short',
+	[  3] = 'long',
+	[  4] = 'float',
+	[  5] = 'double',
+	[  6] = 'null',
+	[  7] = 'timestamp',
+	[  8] = 'longlong',
+	[  9] = 'int24',
+	[ 10] = 'date',
+	[ 11] = 'time',
+	[ 12] = 'datetime',
+	[ 13] = 'year',
+	[ 15] = 'varchar',
+	[ 16] = 'bit',
+	[246] = 'newdecimal',
+	[247] = 'enum',
+	[248] = 'set',
+	[249] = 'tiny_blob',
+	[250] = 'medium_blob',
+	[251] = 'long_blob',
+	[252] = 'blob',
+	[253] = 'var_string',
+	[254] = 'string',
+	[255] = 'geometry',
+}
+
+local type_names = {
+	tiny        = 'tinyint',
+	short       = 'shortint',
+	long        = 'int',
+	int24       = 'mediumint',
+	longlong    = 'bigint',
+	newdecimal  = 'decimal',
+}
+
+local bin_type_names = {
+	tiny_blob   = 'tinyblob',
+	medium_blob = 'mediumblob',
+	long_blob   = 'longblob',
+	blob        = 'blob',
+	var_string  = 'varbinary',
+	string      = 'binary',
+}
+
+local text_type_names = {
+	tiny_blob   = 'tinytext',
+	medium_blob = 'mediumtext',
+	long_blob   = 'longtext',
+	blob        = 'text',
+	var_string  = 'varchar',
+	string      = 'char',
 }
 
 local conn = {}
 local mt = {__index = conn}
 
 -- mysql field value type converters
-local converters = {}
-
-for i = 0x01, 0x05 do -- tiny, short, long, float, double
-	converters[i] = tonumber
-end
-converters[0x00] = tonumber  -- decimal
--- converters[0x08] = tonumber  -- long long
-converters[0x09] = tonumber  -- int24
-converters[0x0d] = tonumber  -- year
-converters[0xf6] = tonumber  -- newdecimal
-
+local converters = {
+	tinyint   = tonumber,
+	shortint  = tonumber,
+	mediumint = tonumber,
+	int       = tonumber,
+	bigint    = tonumber,
+	year      = tonumber,
+	float     = tonumber,
+	double    = tonumber,
+}
 
 local function _get_byte2(data, i)
 	local a, b = strbyte(data, i, i + 1)
@@ -161,7 +480,7 @@ end
 
 
 local function _from_cstring(data, i)
-	local last = strfind(data, '\0', i, true)
+	local last = data:find('\0', i, true)
 	if not last then
 		return nil, nil
 	end
@@ -234,29 +553,10 @@ local function _send_packet(self, req, size)
 	return sock:send(packet)
 end
 
---static, auto-growing buffer allocation pattern (ctype must be vla).
-local max, ceil, log = math.max, math.ceil, math.log
-local function nextpow2(x)
-	return max(0, 2^(ceil(log(x) / log(2))))
-end
-local function grow_buffer(ctype)
-	local vla = ffi.typeof(ctype)
-	local buf, len = nil, -1
-	return function(minlen)
-		if minlen == false then
-			buf, len = nil, -1
-		elseif minlen > len then
-			len = nextpow2(minlen)
-			buf = vla(len)
-		end
-		return buf, len
-	end
-end
-
 local function _recv(self, sz)
 	local buf = self.buf
 	if not buf then
-		buf = grow_buffer'char[?]'
+		buf = buffer'char[?]'
 		self.buf = buf
 	end
 	local buf = buf(sz)
@@ -335,7 +635,7 @@ local function _from_length_coded_bin(data, pos)
 	end
 
 	if first == 251 then
-		return null, pos + 1
+		return nil, pos + 1
 	end
 
 	if first == 252 then
@@ -360,8 +660,8 @@ end
 local function _from_length_coded_str(data, pos)
 	local len
 	len, pos = _from_length_coded_bin(data, pos)
-	if not len or len == null then
-		return null, pos
+	if not len then
+		return nil, pos
 	end
 	return sub(data, pos, pos + len - 1), pos + len
 end
@@ -376,6 +676,10 @@ local function _parse_ok_packet(packet)
 
 	res.insert_id, pos = _from_length_coded_bin(packet, pos)
 
+	if res.insert_id == 0 then
+		res.insert_id = nil
+	end
+
 	--print('insert id: ', res.insert_id, ', pos:', pos)
 
 	res.server_status, pos = _get_byte2(packet, pos)
@@ -386,10 +690,7 @@ local function _parse_ok_packet(packet)
 
 	--print('warning count: ', res.warning_count, ', pos: ', pos)
 
-	local message = _from_length_coded_str(packet, pos)
-	if message and message ~= null then
-		res.message = message
-	end
+	res.message = _from_length_coded_str(packet, pos)
 
 	--print('message: ', res.message, ', pos:', pos)
 
@@ -419,6 +720,7 @@ local function _parse_err_packet(packet)
 	end
 
 	local message = sub(packet, pos)
+	message = message:gsub('You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ', 'Syntax error: ')
 	return errno, message, sqlstate
 end
 
@@ -440,7 +742,7 @@ local AUTO_INCREMENT_FLAG = 512
 
 local function _parse_field(data, pos)
 	local s, pos = _from_length_coded_str(data, pos)
-	s = s ~= null and s ~= '' and s:lower() or nil
+	s = s and s ~= '' and s:lower() or nil
 	return s, pos
 end
 
@@ -450,38 +752,45 @@ local function _parse_field_packet(data)
 	col.catalog, pos = _parse_field(data, 1)
 	col.schema, pos = _parse_field(data, pos)
 	col.table, pos = _parse_field(data, pos)
-	col.orig_table, pos = _parse_field(data, pos)
+	col.origin_table, pos = _parse_field(data, pos)
 	col.name, pos = _parse_field(data, pos)
-	col.orig_name, pos = _parse_field(data, pos)
+	col.origin_name, pos = _parse_field(data, pos)
 	pos = pos + 1 -- ignore the filler
-	col.charsetnr, pos = _get_byte2(data, pos)
+	local collation, pos = _get_byte2(data, pos)
 	col.length, pos = _get_byte4(data, pos)
-	col.type = strbyte(data, pos)
+	local buffer_type = buffer_type_names[strbyte(data, pos)]
+	local text_type_names = collation == 63 and bin_type_names or text_type_names
+	col.type = text_type_names[buffer_type]
+	if col.type then
+		col.collation = collation_names[collation]
+		col.charset = col.collation and col.collation:match'^[^_]+'
+	else
+		col.type = type_names[buffer_type] or buffer_type
+	end
 	pos = pos + 1
-	col.flags, pos = _get_byte2(data, pos)
-	col.not_null       = band(col.flags, NOT_NULL_FLAG) ~= 0 or nil
-	col.pri_key        = band(col.flags, PRI_KEY_FLAG) ~= 0 or nil
-	col.unique_key     = band(col.flags, UNIQUE_KEY_FLAG) ~= 0 or nil
-	col.unsigned       = band(col.flags, UNSIGNED_FLAG) ~= 0 or nil
-	col.auto_increment = band(col.flags, AUTO_INCREMENT_FLAG) ~= 0 or nil
+	local flags, pos = _get_byte2(data, pos)
+	col.not_null       = band(flags, NOT_NULL_FLAG      ) ~= 0 or nil
+	col.pri_key        = band(flags, PRI_KEY_FLAG       ) ~= 0 or nil
+	col.unique_key     = band(flags, UNIQUE_KEY_FLAG    ) ~= 0 or nil
+	col.unsigned       = band(flags, UNSIGNED_FLAG      ) ~= 0 or nil
+	col.auto_increment = band(flags, AUTO_INCREMENT_FLAG) ~= 0 or nil
 	col.decimals = strbyte(data, pos)
 	pos = pos + 1
-	local default = sub(data, pos + 2)
-	if default and default ~= '' then
-		col.default = default
-	end
+	col.default = repl(sub(data, pos + 2), '', nil)
 	return col
 end
 
 
-local function _parse_row_data_packet(data, cols, compact)
+local function _parse_row_data_packet(data, cols, compact, to_array, null_value)
 	local pos = 1
 	local ncols = #cols
 	local row
-	if compact then
-		row = new_tab(ncols, 0)
-	else
-		row = new_tab(0, ncols)
+	if not to_array then
+		if compact then
+			row = new_tab(ncols, 0)
+		else
+			row = new_tab(0, ncols)
+		end
 	end
 	for i = 1, ncols do
 		local value
@@ -492,16 +801,22 @@ local function _parse_row_data_packet(data, cols, compact)
 
 		--print('row field value: ', value, ', type: ', typ)
 
-		if value ~= null then
+		if value ~= nil then
 			local conv = converters[typ]
 			if conv then
 				value = conv(value)
 			end
+		else
+			value = null_value
+		end
+
+		if to_array then
+			return value
 		end
 
 		if compact then
 			row[i] = value
-		elseif value ~= null then
+		else
 			row[name] = value
 		end
 	end
@@ -555,9 +870,12 @@ function conn:connect(opts)
 	local database = opts.database or ''
 	local user = opts.user or ''
 
-	local charset = CHARSET_MAP[opts.charset or '_default']
-	if not charset then
-		return nil, 'charset \'' .. opts.charset .. '\' is not supported'
+	local collation = 0 --default
+	if opts.collation then
+		collation = assert(collation_codes[opts.collation], 'invalid collation')
+	elseif opts.charset then
+		collation = assert(default_collations[opts.charset], 'invalid charset')
+		collation = assert(collation_codes[collation])
 	end
 
 	local host = opts.host
@@ -652,7 +970,7 @@ function conn:connect(opts)
 		-- send a SSL Request Packet
 		local req = _set_byte4(bor(client_flags, CLIENT_SSL))
 					.. _set_byte4(self._max_packet_size)
-					.. strchar(charset)
+					.. strchar(collation)
 					.. strrep('\0', 23)
 
 		local packet_len = 4 + 4 + 1 + 23
@@ -675,7 +993,7 @@ function conn:connect(opts)
 
 	local req = _set_byte4(client_flags)
 				.. _set_byte4(self._max_packet_size)
-				.. strchar(charset)
+				.. strchar(collation)
 				.. strrep('\0', 23)
 				.. _to_cstring(user)
 				.. _to_binary_coded_string(token)
@@ -712,7 +1030,7 @@ function conn:connect(opts)
 		return nil, 'bad packet type: ' .. typ
 	end
 
-	self.state = STATE_CONNECTED
+	self.state = 'ready'
 
 	return 1
 end
@@ -735,7 +1053,7 @@ function conn:server_ver()
 end
 
 function conn:send_query(query)
-	assert(self.state == STATE_CONNECTED)
+	assert(self.state == 'ready')
 	local sock = assert(self.sock)
 
 	self.packet_no = -1
@@ -748,22 +1066,16 @@ function conn:send_query(query)
 		return nil, err
 	end
 
-	self.state = STATE_COMMAND_SENT
+	self.state = 'read'
 
 	--print('packet sent ', bytes, ' bytes')
 
 	return bytes
 end
 
-function conn:read_result(est_nrows, compact)
-	assert(self.state == STATE_COMMAND_SENT)
+function conn:read_result(opt)
+	assert(self.state == 'read')
 	local sock = assert(self.sock)
-
-	compact = compact == 'compact'
-	if est_nrows == 'compact' then
-		est_nrows = null
-		compact = true
-	end
 
 	local packet, typ, err = _recv_packet(self)
 	if not packet then
@@ -771,7 +1083,7 @@ function conn:read_result(est_nrows, compact)
 	end
 
 	if typ == 'ERR' then
-		self.state = STATE_CONNECTED
+		self.state = 'ready'
 
 		local errno, msg, sqlstate = _parse_err_packet(packet)
 		return nil, msg, errno, sqlstate
@@ -783,12 +1095,12 @@ function conn:read_result(est_nrows, compact)
 			return res, 'again'
 		end
 
-		self.state = STATE_CONNECTED
+		self.state = 'ready'
 		return res
 	end
 
 	if typ ~= 'DATA' then
-		self.state = STATE_CONNECTED
+		self.state = 'ready'
 
 		return nil, 'packet type ' .. typ .. ' not supported'
 	end
@@ -808,7 +1120,9 @@ function conn:read_result(est_nrows, compact)
 			return nil, err, errno, sqlstate
 		end
 
+		col.index = i
 		cols[i] = col
+		cols[col.name] = col
 	end
 
 	local packet, typ, err = _recv_packet(self)
@@ -823,7 +1137,11 @@ function conn:read_result(est_nrows, compact)
 
 	-- typ == 'EOF'
 
-	local rows = new_tab(est_nrows or 4, 0)
+	local compact    = opt and opt.compact
+	local to_array   = opt and opt.to_array and #cols == 1
+	local null_value = opt and opt.null_value
+
+	local rows = new_tab(4, 0)
 	local i = 0
 	while true do
 		--print('reading a row')
@@ -851,20 +1169,21 @@ function conn:read_result(est_nrows, compact)
 
 		-- typ == 'DATA'
 
-		local row = _parse_row_data_packet(packet, cols, compact)
+		local row = _parse_row_data_packet(packet, cols, compact, to_array, null_value)
+
 		i = i + 1
 		rows[i] = row
 	end
 
-	self.state = STATE_CONNECTED
+	self.state = 'ready'
 
 	return rows, nil, cols
 end
 
-function conn:query(query, est_nrows)
+function conn:query(query, opt)
 	local bytes, err, errcode = self:send_query(query)
 	if not bytes then return nil, err, errcode end
-	return self:read_result(est_nrows)
+	return self:read_result(opt)
 end
 
 local qmap = {

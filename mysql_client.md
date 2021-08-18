@@ -30,7 +30,7 @@ local res = assert(cn:query('create table cats '
 			  .. 'name varchar(5))'))
 
 local res = assert(cn:query('insert into cats (name) '
-	.. 'values (\'Bob\'),(\'\'),(null)'))
+	.. "values ('Bob'),(''),(null)"))
 
 print(res.affected_rows, ' rows inserted into table cats ',
 		'(last insert id: ', res.insert_id, ')')
@@ -61,12 +61,8 @@ The `options` argument is a Lua table holding the following keys:
   * `database`: the MySQL database name.
   * `user`: MySQL account name for login.
   * `password`: MySQL account password for login (in clear text).
-  * `charset`: the character set used for the connection, which can be one of:
-  `big5`, `dec8`, `cp850`, `hp8`, `koi8r`, `latin1`, `latin2`,
-  `swe7`, `ascii`, `ujis`, `sjis`, `hebrew`, `tis620`, `euckr`, `koi8u`, `gb2312`, `greek`,
-  `cp1250`, `gbk`, `latin5`, `armscii8`, `utf8`, `ucs2`, `cp866`, `keybcs2`, `macce`,
-  `macroman`, `cp852`, `latin7`, `utf8mb4`, `cp1251`, `utf16`, `utf16le`, `cp1256`,
-  `cp1257`, `utf32`, `binary`, `geostd8`, `cp932`, `eucjpms`, `gb18030`.
+  * `collation`: the collation used for the connection (`charset` is implied with this).
+  * `charset`: the character set used for the connection (the default collation for the charset is selected).
   * `max_packet_size`: the upper limit for the reply packets sent from the server (default to 1MB).
   * `ssl`: if `true`, then uses SSL to connect to MySQL (default to `false`).
   If the server does not have SSL support (or just disabled), the error string
@@ -83,7 +79,7 @@ Sends the query to the remote MySQL server without waiting for its replies.
 
 Returns the bytes successfully sent out. Use `read_result()` to read the replies.
 
-### `cn:read_result([nrows,]['compact']) -> res,nil,cols | nil,err,errcode,sqlstate`
+### `cn:read_result([options]) -> res,nil|'again',cols | nil,err,errcode,sqlstate`
 
 Reads in one result returned from the server.
 
@@ -91,23 +87,12 @@ It returns a Lua table (`res`) describing the MySQL `OK packet`
 or `result set packet` for the query result.
 
 For queries corresponding to a result set, it returns an array holding all the rows.
-Each row holds key-value pairs for each data fields. For instance,
 
-```lua
-    {
-        { name = "Bob", age = 32, phone = mysql.null },
-        { name = "Marry", age = 18, phone = "10666372" }
-    }
-```
+The `options` arg can contain:
 
-If `'compact'` given, it returns an array-of-arrays instead:
-
-```lua
-    {
-        { "Bob", 32, null },
-        { "Marry", 18, "10666372" }
-    }
-```
+  * `compact   = true` -- return an array of arrays instead of an array of `{column->value}` maps.
+  * `to_array  = true` -- return an array of values for single-column results.
+  * `null_value = val` -- value to use for `null` (defaults to `nil`).
 
 For queries that do not correspond to a result set, it returns a Lua table like this:
 
@@ -126,7 +111,7 @@ will be given the string `again`. One should always check this (second) return
 value and if it is `again`, then she should call this method again to retrieve
 more results. This usually happens when the original query contains multiple
 statements (separated by semicolon in the same query string) or calling a
-MySQL procedure. See also [Multi-Resultset Support](#multi-resultset-support).
+MySQL procedure.
 
 In case of errors, this method returns at most 4 values: `nil`, `err`, `errcode`, and `sqlstate`.
 The `err` return value contains a string describing the error, the `errcode`
@@ -135,18 +120,14 @@ the `sqlstate` return value contains the standard SQL error code that consists
 of 5 characters. Note that, the `errcode` and `sqlstate` might be `nil`
 if MySQL does not return them.
 
-The optional argument `nrows` can be used to specify an approximate number
-of rows for the result set. This value can be used to pre-allocate space
-in the resulting Lua table for the result set. By default, it takes the value 4.
-
-### `cn:query(query, [nrows]) -> res,nil,cols | nil,err,errcode,sqlstate`
+### `cn:query(query, [options]) -> res,nil,cols | nil,err,errcode,sqlstate`
 
 This is a shortcut for combining the [send_query](#send_query) call
 and the first [read_result](#read_result) call.
 
 You should always check if the `err` return value  is `again` in case of
 success because this method will only call [read_result](#read_result)
-only once for you. See also [Multi-Resultset Support](#multi-resultset-support).
+once for you.
 
 ### `cn:server_ver() -> s`
 
