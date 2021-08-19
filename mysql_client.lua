@@ -734,49 +734,48 @@ local function _parse_result_set_header_packet(packet)
 	return field_count, extra
 end
 
-local NOT_NULL_FLAG       = 1
-local PRI_KEY_FLAG        = 2
-local UNIQUE_KEY_FLAG     = 4
-local UNSIGNED_FLAG       = 32
-local AUTO_INCREMENT_FLAG = 512
-
 local function _parse_field(data, pos)
 	local s, pos = _from_length_coded_str(data, pos)
 	s = s and s ~= '' and s:lower() or nil
 	return s, pos
 end
 
+local charset_bytes = {
+	utf8 = 3,
+	utf8mb4 = 4,
+}
+
+--NOTE: MySQL doesn't give enough info to make editable fields in a UI,
+--you'll have to query `information_schema` to get the rest like enum values
+--and defaults. So we only keep enough info to format read-only fields in a UI.
 local function _parse_field_packet(data)
-	local col = new_tab(0, 2)
-	local pos
-	col.catalog, pos = _parse_field(data, 1)
+	local col = new_tab(0, 16)
+	local catalog, pos = _parse_field(data, 1) --always "def"
 	col.schema, pos = _parse_field(data, pos)
 	col.table, pos = _parse_field(data, pos)
 	col.origin_table, pos = _parse_field(data, pos)
 	col.name, pos = _parse_field(data, pos)
 	col.origin_name, pos = _parse_field(data, pos)
-	pos = pos + 1 -- ignore the filler
+	pos = pos + 1 --ignore the filler
 	local collation, pos = _get_byte2(data, pos)
-	col.length, pos = _get_byte4(data, pos)
+	col.max_char_w, pos = _get_byte4(data, pos)
 	local buffer_type = buffer_type_names[strbyte(data, pos)]
-	local text_type_names = collation == 63 and bin_type_names or text_type_names
-	col.type = text_type_names[buffer_type]
-	if col.type then
+	if collation == 63 then
+		col.type = bin_type_names[buffer_type]
+			or type_names[buffer_type]
+			or buffer_type
+	else
+		col.type = text_type_names[buffer_type]
 		col.collation = collation_names[collation]
 		col.charset = col.collation and col.collation:match'^[^_]+'
-	else
-		col.type = type_names[buffer_type] or buffer_type
+		col.max_char_w = col.max_char_w / (charset_bytes[col.charset] or 1)
 	end
 	pos = pos + 1
 	local flags, pos = _get_byte2(data, pos)
-	col.not_null       = band(flags, NOT_NULL_FLAG      ) ~= 0 or nil
-	col.pri_key        = band(flags, PRI_KEY_FLAG       ) ~= 0 or nil
-	col.unique_key     = band(flags, UNIQUE_KEY_FLAG    ) ~= 0 or nil
-	col.unsigned       = band(flags, UNSIGNED_FLAG      ) ~= 0 or nil
-	col.auto_increment = band(flags, AUTO_INCREMENT_FLAG) ~= 0 or nil
-	col.decimals = strbyte(data, pos)
-	pos = pos + 1
-	col.default = repl(sub(data, pos + 2), '', nil)
+	col.decimals = strbyte(data, pos) --for formatting only, not for editing!
+	if col.type ~= 'decimal' and col.decimals == 0x1f then --varchar and floats
+		col.decimals = nil
+	end
 	return col
 end
 
