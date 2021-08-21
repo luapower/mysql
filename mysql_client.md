@@ -1,25 +1,21 @@
 
 ## `local mysql = require'mysql_client'`
 
-MySQL client protocol in Lua. Stolen from OpenResty and modified to work standalone.
-
-## Status
-
-This library is considered production ready.
+MySQL client protocol in Lua.
+Stolen from OpenResty and modified to work standalone.
 
 ## Example
 
 ```lua
 local mysql = require'mysql_client'
-local cn = assert(mysql:new())
 
-assert(cn:connect{
+assert(mysql.connect{
 	host = '127.0.0.1',
 	port = 3306,
-	database = 'ngx_test',
-	user = 'ngx_test',
-	password = 'ngx_test',
-	charset = 'utf8',
+	database = 'foo',
+	user = 'bar',
+	password = 'baz',
+	charset = 'utf8mb4',
 	max_packet_size = 1024 * 1024,
 })
 
@@ -35,21 +31,14 @@ local res = assert(cn:query('insert into cats (name) '
 print(res.affected_rows, ' rows inserted into table cats ',
 		'(last insert id: ', res.insert_id, ')')
 
-local res = assert(cn:query('select * from cats order by id asc', 10))
-
-local cjson = require'cjson'
-print(cjson.encode(res))
+require'pp'(assert(cn:query('select * from cats order by id asc', 10)))
 
 assert(cn:close())
 ```
 
 ## API
 
-### `mysql:new() -> cn | nil,err`
-
-Creates a MySQL connection object.
-
-### `cn:connect(options) -> ok | nil,err,errcode,sqlstate`
+### `mysql.connect(options) -> ok | nil,err,errcode,sqlstate`
 
 Connect to a MySQL server.
 
@@ -129,12 +118,22 @@ You should always check if the `err` return value  is `again` in case of
 success because this method will only call [read_result](#read_result)
 once for you.
 
-### `cn:server_ver() -> s`
 
-Returns the MySQL server version string, like `"5.1.64"`.
+### `cn:prepare(query) -> stmt`
 
-You should only call this method after successfully connecting to a MySQL server,
-otherwise `nil` will be returned.
+Prepare a statement.
+
+### `stmt:exec(params...)`
+
+Execute a statement. Use `cn:read_result()` to get the results.
+
+### `stmt:free()`
+
+Free statement.
+
+### `cn.server_ver`
+
+The MySQL server version string.
 
 ### `mysql.quote(s) -> s`
 
@@ -158,7 +157,5 @@ are suppored.
 
 ## TODO
 
-* implement the MySQL binary row data packets.
-* implement MySQL server prepare and execute packets.
 * implement the data compression support in the protocol.
 
