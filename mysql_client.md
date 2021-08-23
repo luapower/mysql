@@ -2,7 +2,7 @@
 ## `local mysql = require'mysql_client'`
 
 MySQL client protocol in Lua.
-Stolen from OpenResty and modified to work standalone.
+Stolen from OpenResty, modified to work with [sock] and added prepared statements.
 
 ## Example
 
@@ -119,9 +119,11 @@ success because this method will only call [read_result](#read_result)
 once for you.
 
 
-### `cn:prepare(query) -> stmt`
+### `cn:prepare(query, [opt]) -> stmt`
 
-Prepare a statement.
+Prepare a statement. Options can contain:
+
+  * `cursor`: 'read_only', 'update', 'scrollabe', 'none' (default: 'none').
 
 ### `stmt:exec(params...)`
 

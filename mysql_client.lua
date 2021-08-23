@@ -1087,13 +1087,13 @@ end
 local stmt = {}
 
 local cursor_types = {
-	no_cursor  = 0x00,
+	none       = 0x00,
 	read_only  = 0x01,
 	update     = 0x02,
 	scrollable = 0x04,
 }
 
-function conn:prepare(query, cursor_type)
+function conn:prepare(query, opt)
 	assert(self.state == 'ready')
 	self.packet_no = -1
 	local buf = send_buffer(1 + #query)
@@ -1115,7 +1115,7 @@ function conn:prepare(query, cursor_type)
 	stmt.warning_count = get_u16(buf)
 	stmt.params = recv_field_packets(self, param_count)
 	stmt.cols = recv_field_packets(self, col_count)
-	stmt.cursor_type = assert(cursor_types[cursor_type or 'no_cursor'])
+	stmt.cursor = assert(cursor_types[opt and opt.cursor or 'none'])
 	return stmt
 end
 conn.prepare = protect(conn.prepare)
@@ -1138,7 +1138,7 @@ function stmt:exec(...)
 	local buf = send_buffer(64)
 	set_u8(buf, COM_STMT_EXECUTE)
 	set_u32(buf, stmt.id)
-	set_u8(buf, stmt.cursor_type)
+	set_u8(buf, stmt.cursor)
 	set_u32(buf, 1) --iteration-count, must be 1
 	if #stmt.params > 0 then
 		local nulls_len = math.floor((#stmt.params + 7) / 8)
@@ -1214,6 +1214,14 @@ function stmt:exec(...)
 	return true
 end
 stmt.exec = protect(stmt.exec)
+
+local function pass(self, opt, ok, ...)
+	if not ok then return nil, ... end
+	return self.conn:read_result(opt)
+end
+function stmt:query(opt, ...)
+	return pass(self, opt, self:exec(...))
+end
 
 local qmap = {
 	['\0' ] = '\\0',
