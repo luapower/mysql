@@ -935,7 +935,6 @@ function mysql.connect(opt)
 	local user = opt.user or ''
 
 	local collation = 0 --default
-	print(opt.collation)
 	if opt.collation ~= 'server' then
 		if opt.collation then
 			collation = assert(collation_codes[opt.collation], 'invalid collation')
@@ -1343,8 +1342,9 @@ if not ... then --demo
 			user = 'root',
 			password = 'abcd12',
 			database = 'sp',
-			collation = 'server'
+			collation = 'server',
 		}
+		print(conn.charset, conn.collation)
 		pp(conn:query'select * from val where val = 1')
 		local stmt = conn:prepare('select * from val where val = ?')
 		assert(stmt:exec(1))
