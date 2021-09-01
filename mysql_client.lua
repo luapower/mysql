@@ -920,6 +920,8 @@ local function get_err_packet(buf)
 	return message, errno, sqlstate
 end
 
+local get_collation --fw. decl.
+
 function mysql.connect(opt)
 
 	local tcp = opt and opt.tcp or require'sock'.tcp
@@ -933,17 +935,20 @@ function mysql.connect(opt)
 	local user = opt.user or ''
 
 	local collation = 0 --default
-	if opt.collation then
-		collation = assert(collation_codes[opt.collation], 'invalid collation')
-		self.collation = opt.collation
-		self.charset = self.collation:match'^[^_]+'
-	elseif opt.charset then
-		local collation_name = assert(default_collations[opt.charset], 'invalid charset')
-		collation = assert(collation_codes[collation_name])
-		self.charset = opt.charset
-		self.collation = collation_name
+	print(opt.collation)
+	if opt.collation ~= 'server' then
+		if opt.collation then
+			collation = assert(collation_codes[opt.collation], 'invalid collation')
+			self.collation = opt.collation
+			self.charset = self.collation:match'^[^_]+'
+		elseif opt.charset then
+			local collation_name = assert(default_collations[opt.charset], 'invalid charset')
+			collation = assert(collation_codes[collation_name])
+			self.charset = opt.charset
+			self.collation = collation_name
+		end
+		assert(self.collation, 'charset and/or collation required')
 	end
-	self.charset_is_ascii_superset = self.charset and not mb_charsets[self.charset]
 
 	local host = opt.host
 	local port = opt.port or 3306
@@ -996,7 +1001,15 @@ function mysql.connect(opt)
 		return nil, 'old pre-4.1 authentication protocol not supported'
 	end
 	check(self, typ == 'OK', 'bad packet type')
+
 	self.state = 'ready'
+
+	if opt.collation == 'server' then
+		self.collation, self.charset = get_collation(self)
+	end
+
+	self.charset_is_ascii_superset = self.charset and not mb_charsets[self.charset]
+
 	return self
 end
 conn.connect = protect(conn.connect)
@@ -1013,7 +1026,7 @@ function conn:close()
 end
 conn.close = protect(conn.close)
 
-function conn:send_query(query)
+local function send_query(self, query)
 	assert(self.state == 'ready')
 	self.packet_no = -1
 	local buf = send_buffer(1 + #query)
@@ -1023,9 +1036,9 @@ function conn:send_query(query)
 	self.state = 'read'
 	return true
 end
-conn.send_query = protect(conn.send_query)
+conn.send_query = protect(send_query)
 
-function conn:read_result(opt)
+local function read_result(self, opt)
 	assert(self.state == 'read' or self.state == 'read_binary')
 	local typ, buf = recv_packet(self)
 	if typ == 'ERR' then
@@ -1147,13 +1160,19 @@ function conn:read_result(opt)
 	self.state = 'ready'
 	return rows, nil, cols
 end
-conn.read_result = protect(conn.read_result)
+conn.read_result = protect(read_result)
 
-function conn:query(query, opt)
-	local bytes, err, errcode = self:send_query(query)
-	if not bytes then return nil, err, errcode end
-	return self:read_result(opt)
+local function query(self, sql, opt)
+	send_query(self, sql)
+	return read_result(self, opt)
 end
+conn.query = protect(query)
+
+function get_collation(self)
+	local t = query(self, 'select @@collation_connection cl, @@character_set_connection cs')[1]
+	return t.cl, t.cs
+end
+conn.get_collation = protect(get_collation)
 
 local stmt = {}
 
@@ -1324,6 +1343,7 @@ if not ... then --demo
 			user = 'root',
 			password = 'abcd12',
 			database = 'sp',
+			collation = 'server'
 		}
 		pp(conn:query'select * from val where val = 1')
 		local stmt = conn:prepare('select * from val where val = ?')

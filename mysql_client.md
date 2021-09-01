@@ -51,6 +51,7 @@ The `options` argument is a Lua table holding the following keys:
   * `user`: MySQL account name for login.
   * `password`: MySQL account password for login (in clear text).
   * `collation`: the collation used for the connection (`charset` is implied with this).
+   * required if `charset` not given: use `'server'` to get the server's default for the connection.
   * `charset`: the character set used for the connection (the default collation for the charset is selected).
   * `max_packet_size`: the upper limit for the reply packets sent from the server (default to 1MB).
   * `ssl`: if `true`, then uses SSL to connect to MySQL (default to `false`).
