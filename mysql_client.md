@@ -137,7 +137,7 @@ Free statement.
 
 The MySQL server version string.
 
-### `mysql.quote(s) -> s`
+### `cn:quote(s) -> s`
 
 Quote literal string to be used in queries.
 

@@ -365,6 +365,22 @@ local default_collations = {
 	utf8mb4  = 'utf8mb4_0900_ai_ci',
 }
 
+local mb_charsets = { --excluding ASCII supersets i.e. utf8* charsets.
+	big5=1,
+	sjis=1,
+	euckr=1,
+	gb2312=1,
+	gbk=1,
+	ucs2=1,
+	cp932=1,
+	ujis=1,
+	eucjpms=1,
+	utf16=1,
+	utf16le=1,
+	utf32=1,
+	gb18030=1,
+}
+
 local buffer_type_names = {
 	[  0] = 'decimal',
 	[  1] = 'tiny',
@@ -919,10 +935,15 @@ function mysql.connect(opt)
 	local collation = 0 --default
 	if opt.collation then
 		collation = assert(collation_codes[opt.collation], 'invalid collation')
+		self.collation = opt.collation
+		self.charset = self.collation:match'^[^_]+'
 	elseif opt.charset then
-		collation = assert(default_collations[opt.charset], 'invalid charset')
-		collation = assert(collation_codes[collation])
+		local collation_name = assert(default_collations[opt.charset], 'invalid charset')
+		collation = assert(collation_codes[collation_name])
+		self.charset = opt.charset
+		self.collation = collation_name
 	end
+	self.charset_is_ascii_superset = self.charset and not mb_charsets[self.charset]
 
 	local host = opt.host
 	local port = opt.port or 3306
@@ -1274,18 +1295,21 @@ function stmt:query(opt, ...)
 end
 
 local qmap = {
+	['\\' ] = '\\\\',
+	['\'' ] = '\\\'',
+	--these are not strictly required but mess up the server anyway go figure.
 	['\0' ] = '\\0',
 	['\b' ] = '\\b',
 	['\n' ] = '\\n',
 	['\r' ] = '\\r',
 	['\t' ] = '\\t',
 	['\26'] = '\\Z',
-	['\\' ] = '\\\\',
-	['\'' ] = '\\\'',
 	['\"' ] = '\\"',
 }
-function mysql.quote(s)
-	return s:gsub('[%z\b\n\r\t\26\\\'\"]', qmap)
+function conn:quote(s)
+	--MBCS that are not ASCII supersets need decoding for correct quoting.
+	assert(self.charset_is_ascii_superset, 'NYI')
+	return s:gsub('[\\\'%z\b\n\r\t\26\"]', qmap)
 end
 
 
