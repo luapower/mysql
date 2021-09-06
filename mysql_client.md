@@ -12,9 +12,9 @@ local mysql = require'mysql_client'
 assert(mysql.connect{
 	host = '127.0.0.1',
 	port = 3306,
-	database = 'foo',
 	user = 'bar',
 	password = 'baz',
+	schema = 'foo',
 	charset = 'utf8mb4',
 	max_packet_size = 1024 * 1024,
 })
@@ -44,20 +44,21 @@ Connect to a MySQL server.
 
 The `options` argument is a Lua table holding the following keys:
 
-  * `host`: the host name for the MySQL server.
-  * `port`: the port that the MySQL server is listening on. Default to 3306.
-  * `path`: the path of the unix socket file listened by the MySQL server.
-  * `database`: the MySQL database name.
-  * `user`: MySQL account name for login.
-  * `password`: MySQL account password for login (in clear text).
-  * `collation`: the collation used for the connection (`charset` is implied with this).
-   * required if `charset` not given: use `'server'` to get the server's default for the connection.
-  * `charset`: the character set used for the connection (the default collation for the charset is selected).
-  * `max_packet_size`: the upper limit for the reply packets sent from the server (default to 1MB).
-  * `ssl`: if `true`, then uses SSL to connect to MySQL (default to `false`).
+  * `host`: server's IP address (required).
+  * `port`: server's port (optional, defaults to 3306).
+  * `user`: user name.
+  * `password`: password (optional).
+  * `schema`: the schema to set as current schema (optional).
+  * `collation`: the collation used for the connection (`charset` is implied by this).
+   * use `'server'` to get the server's collation and charset for the connection.
+  * `charset`: the character set used for the connection.
+   * if `collation` not set, the default collation for the charset is selected.
+  * `max_packet_size`: the upper limit for the reply packets sent from the server (defaults to 16 MB).
+  * `ssl`: if `true`, then uses SSL to connect to MySQL (defaults to `false`).
   If the server does not have SSL support (or just disabled), the error string
-  "ssl disabled on server" will be returned.
-  * `ssl_verify`: if `true`, then verifies the validity of the server SSL certificate (default to `false`).
+  "ssl disabled on server" is returned.
+  * `ssl_verify`: if `true`, then verifies the validity of the server SSL
+  certificate (default is `false`).
 
 ### `cn:close() -> 1 | nil,err`
 
@@ -140,7 +141,8 @@ The MySQL server version string.
 
 ### `cn:quote(s) -> s`
 
-Quote literal string to be used in queries.
+Quote literal string to be used in queries. Quoting only works if current
+collation is known (ses `collation` arg on `connect()`).
 
 ### Multiple result set support
 

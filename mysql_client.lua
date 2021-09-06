@@ -772,7 +772,7 @@ local function set_str(buf, s)
 end
 
 local function set_token(buf, password, scramble)
-	if password == '' then
+	if not password or password == '' then
 		return ''
 	end
 	local stage1 = sha1(password)
@@ -931,9 +931,6 @@ function mysql.connect(opt)
 	self.max_packet_size = opt.max_packet_size or 16 * 1024 * 1024 --16 MB
 	local ok, err
 
-	local database = opt.database or ''
-	local user = opt.user or ''
-
 	local collation = 0 --default
 	if opt.collation ~= 'server' then
 		if opt.collation then
@@ -988,9 +985,9 @@ function mysql.connect(opt)
 	set_u32(buf, self.max_packet_size)
 	set_u8(buf, collation)
 	buf(23)
-	set_cstring(buf, user)
-	set_token(buf, opt.password or '', scramble)
-	set_cstring(buf, database)
+	set_cstring(buf, opt.user or '')
+	set_token(buf, opt.password, scramble)
+	set_cstring(buf, opt.schema or '')
 	send_packet(self, buf)
 
 	local typ, buf = recv_packet(self)
@@ -1008,6 +1005,8 @@ function mysql.connect(opt)
 	end
 
 	self.charset_is_ascii_superset = self.charset and not mb_charsets[self.charset]
+	self.schema = opt.schema
+	self.user = opt.user
 
 	return self
 end
@@ -1336,14 +1335,14 @@ if not ... then --demo
 	local sock = require'sock'
 	local pp = require'pp'
 	sock.run(function()
-		local conn = mysql.connect{
+		local conn = assert(mysql.connect{
 			host = '127.0.0.1',
 			port = 3307,
 			user = 'root',
 			password = 'abcd12',
-			database = 'sp',
+			schema = 'sp',
 			collation = 'server',
-		}
+		})
 		print(conn.charset, conn.collation)
 		pp(conn:query'select * from val where val = 1')
 		local stmt = conn:prepare('select * from val where val = ?')
