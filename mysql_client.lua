@@ -452,6 +452,14 @@ local string_types = {
 	newdecimal=1,
 }
 
+local int_ranges = {
+	tinyint   = {-(2^ 7-1), 2^ 7, 0, 2^ 8-1},
+	shortint  = {-(2^15-1), 2^15, 0, 2^16-1},
+	mediumint = {-(2^23-1), 2^23, 0, 2^24-1},
+	int       = {-(2^31-1), 2^31, 0, 2^32-1},
+	bigint    = {-(2^51-1), 2^51, 0, 2^52-1},
+}
+
 local conn = {}
 local conn_mt = {__index = conn}
 
@@ -854,6 +862,25 @@ end
 
 local UNSIGNED_FLAG = 32
 
+function mysql.num_range(type, unsigned, digits, decimals)
+	if type == 'decimal' then
+		if digits and decimals then
+			local max = 10^(digits - decimals) - 1 / 10^decimals
+			local min = unsigned and 0 or -max --unsigned decimals is deprecated!
+			return min, max
+		end
+	else
+		local range = int_ranges[type]
+		if range then
+			if unsigned then
+				return range[3], range[4]
+			else
+				return range[1], range[2]
+			end
+		end
+	end
+end
+
 --NOTE: MySQL doesn't give enough metadata to generate a form in a UI,
 --you'll have to query `information_schema` to get the rest like enum values
 --and defaults. So we only keep enough info for formatting the values.
@@ -887,6 +914,7 @@ local function get_field_packet(buf)
 	col.buffer_type = buf_type
 	col.buffer_type_code = buf_type_code
 	col.unsigned = band(flags, UNSIGNED_FLAG) ~= 0 or nil
+	col.min, col.max = mysql.num_range(col.type, col.unsigned, nil, col.decimals)
 	return col
 end
 
@@ -1344,9 +1372,9 @@ if not ... then --demo
 			collation = 'server',
 		})
 		print(conn.charset, conn.collation)
-		pp(conn:query'select * from val where val = 1')
-		local stmt = conn:prepare('select * from val where val = ?')
-		assert(stmt:exec(1))
+		--pp(conn:query'select * from val where val = 1')
+		local stmt = conn:prepare('select min_price from vari where val = ?')
+		assert(stmt:exec())
 		pp(conn:read_result({datetime_format = '*t'}))
 		assert(stmt:free())
 	end)
