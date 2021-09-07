@@ -463,7 +463,7 @@ local int_ranges = {
 local conn = {}
 local conn_mt = {__index = conn}
 
-local from_text_converters = {
+local to_lua = {
 	tinyint   = tonumber,
 	shortint  = tonumber,
 	mediumint = tonumber,
@@ -472,7 +472,15 @@ local from_text_converters = {
 	year      = tonumber,
 	float     = tonumber,
 	double    = tonumber,
+	decimal   = tonumber,
 }
+function mysql.to_lua(v, col)
+	local to_lua = to_lua[col.type]
+	if to_lua then
+		v = to_lua(v)
+	end
+	return v
+end
 
 local function return_arg1(v) return v end
 
@@ -888,10 +896,10 @@ local function get_field_packet(buf)
 	local col = {}
 	local _              = get_name(buf) --always "def"
 	col.schema           = get_name(buf)
-	col.table            = get_name(buf)
-	col.origin_table     = get_name(buf)
-	col.name             = get_name(buf)
-	col.origin_name      = get_name(buf)
+	col.table_alias      = get_name(buf)
+	col.table            = get_name(buf) --name of origin table
+	col.name             = get_name(buf) --alias column name
+	col.col              = get_name(buf) --name of column in origin table
 	local _              = get_uint(buf) --0x0c
 	local collation      = get_u16(buf)
 	col.max_char_w       = get_u32(buf)
@@ -918,7 +926,7 @@ local function get_field_packet(buf)
 	return col
 end
 
-local function recv_field_packets(self, field_count)
+local function recv_field_packets(self, field_count, field_attrs)
 	local fields = {}
 	for i = 1, field_count do
 		local typ, buf = recv_packet(self)
@@ -927,6 +935,9 @@ local function recv_field_packets(self, field_count)
 		field.index = i
 		fields[i] = field
 		fields[field.name] = field
+		if field_attrs then
+			update(field, field_attrs[field.name])
+		end
 	end
 	if field_count > 0 then
 		local typ, buf = recv_packet(self)
@@ -1026,6 +1037,7 @@ function mysql.connect(opt)
 	end
 	check(self, typ == 'OK', 'bad packet type')
 
+	self.to_lua = mysql.to_lua
 	self.state = 'ready'
 
 	if opt.collation == 'server' then
@@ -1035,6 +1047,7 @@ function mysql.connect(opt)
 	self.charset_is_ascii_superset = self.charset and not mb_charsets[self.charset]
 	self.schema = opt.schema
 	self.user = opt.user
+	self.host_port = host .. ':' .. port
 
 	return self
 end
@@ -1090,14 +1103,16 @@ local function read_result(self, opt)
 	local field_count = get_uint(buf)
 	local extra = buf_len(buf) > 0 and get_uint(buf) or nil
 
-	local cols = recv_field_packets(self, field_count)
+	local cols = recv_field_packets(self, field_count, opt and opt.field_attrs)
 
-	local compact     = opt and opt.compact
-	local to_array    = opt and opt.to_array and #cols == 1
-	local null_value  = opt and opt.null_value
-	local datetime_format = opt and opt.datetime_format
-	local date_format     = opt and opt.date_format
-	local time_format     = opt and opt.time_format
+	local compact         = opt and opt.compact
+	local to_array        = opt and opt.to_array and #cols == 1
+	local sopt = opt or self
+	local null_value      = sopt.null_value
+	local datetime_format = sopt.datetime_format
+	local date_format     = sopt.date_format
+	local time_format     = sopt.time_format
+	local to_lua          = sopt.to_lua
 
 	local rows = {}
 	local i = 0
@@ -1162,10 +1177,7 @@ local function read_result(self, opt)
 			for i, col in ipairs(cols) do
 				local v = get_str(buf)
 				if v ~= nil then
-					local convert = from_text_converters[col.type]
-					if convert then
-						v = convert(v)
-					end
+					v = to_lua(v, col)
 				else
 					v = null_value
 				end
@@ -1229,8 +1241,8 @@ function conn:prepare(query, opt)
 	local param_count  = get_u16(buf)
 	buf(1) --filler
 	stmt.warning_count = get_u16(buf)
-	stmt.params = recv_field_packets(self, param_count)
-	stmt.cols = recv_field_packets(self, col_count)
+	stmt.params = recv_field_packets(self, param_count, opt and opt.param_attrs)
+	stmt.cols = recv_field_packets(self, col_count, opt and opt.field_attrs)
 	stmt.cursor = assert(cursor_types[opt and opt.cursor or 'none'])
 	return stmt
 end

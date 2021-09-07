@@ -59,6 +59,7 @@ The `options` argument is a Lua table holding the following keys:
   "ssl disabled on server" is returned.
   * `ssl_verify`: if `true`, then verifies the validity of the server SSL
   certificate (default is `false`).
+  * `to_lua = f(v, col) -> v` -- custom value converter (defaults to `mysql.to_lua`).
 
 ### `cn:close() -> 1 | nil,err`
 
@@ -72,37 +73,24 @@ Returns the bytes successfully sent out. Use `read_result()` to read the replies
 
 ### `cn:read_result([options]) -> res,nil|'again',cols | nil,err,errcode,sqlstate`
 
-Reads in one result returned from the server.
-
-It returns a Lua table (`res`) describing the MySQL `OK packet`
-or `result set packet` for the query result.
-
-For queries corresponding to a result set, it returns an array holding all the rows.
+Reads in the next result set returned from the server.
 
 The `options` arg can contain:
 
   * `compact   = true` -- return an array of arrays instead of an array of `{column->value}` maps.
   * `to_array  = true` -- return an array of values for single-column results.
   * `null_value = val` -- value to use for `null` (defaults to `nil`).
+  * `to_lua = f(v, col) -> v` -- custom value converter.
 
-For queries that do not correspond to a result set, it returns a Lua table like this:
+For queries that return a result set, it returns an array of rows.
+For other queries it returns a Lua table with information such as
+the autoincrement value if any and the affected rows.
 
-```lua
-    {
-        insert_id = 0,
-        server_status = 2,
-        warning_count = 1,
-        affected_rows = 32,
-        message = nil
-    }
-```
-
-If more results are following the current result, a second `err` return value
-will be given the string `again`. One should always check this (second) return
-value and if it is `again`, then she should call this method again to retrieve
-more results. This usually happens when the original query contains multiple
-statements (separated by semicolon in the same query string) or calling a
-MySQL procedure.
+If more results are following the current result, a second return value
+`'again'` is returned. One should always check this value and call this
+method again to retrieve more results. This usually happens when the original
+query contains multiple statements (separated by semicolon in the same
+query string) or calling a stored procedure.
 
 In case of errors, this method returns at most 4 values: `nil`, `err`, `errcode`, and `sqlstate`.
 The `err` return value contains a string describing the error, the `errcode`
@@ -110,6 +98,9 @@ return value holds the MySQL error code (a numerical value), and finally,
 the `sqlstate` return value contains the standard SQL error code that consists
 of 5 characters. Note that, the `errcode` and `sqlstate` might be `nil`
 if MySQL does not return them.
+
+NOTE: 64 bit integers and decimals are converted to Lua numbers by default.
+That limits the useful integer range of number types to ±2^51 or 15 digits.
 
 ### `cn:query(query, [options]) -> res,nil,cols | nil,err,errcode,sqlstate`
 
