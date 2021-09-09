@@ -871,12 +871,10 @@ end
 local UNSIGNED_FLAG = 32
 
 function mysql.num_range(type, unsigned, digits, decimals)
-	if type == 'decimal' then
-		if digits and decimals then
-			local max = 10^(digits - decimals) - 1 / 10^decimals
-			local min = unsigned and 0 or -max --unsigned decimals is deprecated!
-			return min, max
-		end
+	if digits and decimals then
+		local max = 10^(digits - decimals) - 1 / 10^decimals
+		local min = unsigned and 0 or -max --unsigned decimals is deprecated!
+		return min, max
 	else
 		local range = int_ranges[type]
 		if range then
@@ -908,16 +906,18 @@ local function get_field_packet(buf)
 	local decimals       = get_u8(buf)
 	local buf_type       = buffer_type_names[buf_type_code]
 	if collation == 63 then
-		col.type = bin_types[buf_type]
-			or num_types[buf_type]
-			or buf_type
+		local type = bin_types[buf_type]
+		if not type then
+			type = num_types[buf_type]
+			if type then
+				col.decimals = decimals
+			end
+		end
+		col.type = type or buf_type
 	else
 		col.type = text_types[buf_type]
 		col.collation = collation_names[collation]
 		col.charset = col.collation and col.collation:match'^[^_]+'
-	end
-	if col.type == 'decimal' then
-		col.decimals = decimals
 	end
 	col.buffer_type = buf_type
 	col.buffer_type_code = buf_type_code
@@ -985,9 +985,9 @@ function mysql.connect(opt)
 		assert(self.collation, 'charset and/or collation required')
 	end
 
-	local host = opt.host
-	local port = opt.port or 3306
-	check_io(self, self.tcp:connect(host, port))
+	self.host = opt.host
+	self.port = opt.port or 3306
+	check_io(self, self.tcp:connect(self.host, self.port))
 
 	local typ, buf = recv_packet(self)
 	if typ == 'ERR' then
@@ -1047,7 +1047,6 @@ function mysql.connect(opt)
 	self.charset_is_ascii_superset = self.charset and not mb_charsets[self.charset]
 	self.schema = opt.schema
 	self.user = opt.user
-	self.host_port = host .. ':' .. port
 
 	return self
 end
@@ -1107,12 +1106,11 @@ local function read_result(self, opt)
 
 	local compact         = opt and opt.compact
 	local to_array        = opt and opt.to_array and #cols == 1
-	local sopt = opt or self
-	local null_value      = sopt.null_value
-	local datetime_format = sopt.datetime_format
-	local date_format     = sopt.date_format
-	local time_format     = sopt.time_format
-	local to_lua          = sopt.to_lua
+	local null_value      = opt and opt.null_value      or self.null_value
+	local datetime_format = opt and opt.datetime_format or self.datetime_format
+	local date_format     = opt and opt.date_format     or self.date_format
+	local time_format     = opt and opt.time_format     or self.time_format
+	local to_lua          = opt and opt.to_lua          or self.to_lua
 
 	local rows = {}
 	local i = 0

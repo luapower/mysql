@@ -100,7 +100,7 @@ of 5 characters. Note that, the `errcode` and `sqlstate` might be `nil`
 if MySQL does not return them.
 
 NOTE: 64 bit integers and decimals are converted to Lua numbers by default.
-That limits the useful integer range of number types to ±2^51 or 15 digits.
+That limits the useful range of number types to 15 significant digits.
 
 ### `cn:query(query, [options]) -> res,nil,cols | nil,err,errcode,sqlstate`
 
