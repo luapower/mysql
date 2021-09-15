@@ -862,7 +862,7 @@ local function get_name(buf)
 end
 
 local function get_eof_packet(buf)
-	local _             = get_u8(buf) --status: EOF
+	buf(1) --status: EOF
 	local warning_count = get_u16(buf)
 	local status_flags  = get_u16(buf)
 	return warning_count, status_flags
@@ -948,7 +948,7 @@ local function recv_field_packets(self, field_count, field_attrs)
 end
 
 local function get_err_packet(buf)
-	local _      = get_u8(buf)
+	buf(1) --status: ERR
 	local errno  = get_u16(buf)
 	local marker = get_u8(buf)
 	local sqlstate = strchar(marker) == '#' and get_bytes(buf, 5) or nil
@@ -1083,12 +1083,13 @@ local function read_result(self, opt)
 		self.state = 'ready'
 		return nil, get_err_packet(buf)
 	elseif typ == 'OK' then
+		buf(1) --status: OK
 		local res = {}
 		res.affected_rows = get_uint(buf)
 		res.insert_id     = get_uint(buf)
 		res.server_status = get_u16(buf)
 		res.warning_count = get_u16(buf)
-		res.message       = get_str(buf)
+		res.message       = buf_len(buf) > 0 and get_str(buf) or nil
 		res.insert_id = repl(res.insert_id, 0, nil)
 		if band(res.server_status, SERVER_MORE_RESULTS_EXISTS) ~= 0 then
 			return res, 'again'
@@ -1243,7 +1244,7 @@ function conn:prepare(query, opt)
 		return nil, get_err_packet(buf)
 	end
 	check(self, typ == 'OK', 'bad packet type')
-	buf(1) --status
+	buf(1) --status: OK
 	local stmt = update({conn = self}, stmt)
 	stmt.id            = get_u32(buf)
 	local col_count    = get_u16(buf)
