@@ -1204,11 +1204,22 @@ local function query(self, sql, opt)
 end
 conn.query = protect(query)
 
-function get_collation(self)
+--[[local]] function get_collation(self)
 	local t = query(self, 'select @@collation_connection cl, @@character_set_connection cs')[1]
 	return t.cl, t.cs
 end
 conn.get_collation = protect(get_collation)
+
+do
+local function pass(self, ret, ...)
+	if not ret then return nil, ... end
+	self.schema = schema
+	return ret, ...
+end
+function conn:use(schema)
+	return pass(self, self:query('use `' .. schema .. '`'))
+end
+end
 
 local stmt = {}
 
