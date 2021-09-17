@@ -1212,13 +1212,13 @@ end
 conn.get_collation = protect(get_collation)
 
 do
-local function pass(self, ret, ...)
+local function pass(self, schema, ret, ...)
 	if not ret then return nil, ... end
 	self.schema = schema
 	return ret, ...
 end
 function conn:use(schema)
-	return pass(self, self:query('use `' .. schema .. '`'))
+	return pass(self, schema, self:query('use `' .. schema .. '`'))
 end
 end
 
