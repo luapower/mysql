@@ -829,7 +829,7 @@ local function recv(self, sz)
 		self.buf = buf
 	end
 	local buf = buf(sz)
-	check_io(self, self.tcp:recvall(buf, sz))
+	check_io(self, self.tcp:recvn(buf, sz))
 	local i = 0
 	return function(n, err)
 		n = n or sz-i
