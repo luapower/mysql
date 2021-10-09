@@ -788,9 +788,6 @@ local function set_str(buf, s)
 end
 
 local function set_token(buf, password, scramble)
-	if not password or password == '' then
-		return ''
-	end
 	local stage1 = sha1(password)
 	local stage2 = sha1(stage1)
 	local stage3 = sha1(scramble .. stage2)
@@ -995,7 +992,7 @@ function mysql.connect(opt)
 	end
 	self.protocol_ver       = get_u8(buf)
 	self.server_ver         = get_cstring(buf)
-	self.thread_id          = get_u32(buf)
+	self.conn_id            = get_u32(buf)
 	local scramble          = get_bytes(buf, 8)
 	buf(1) --filler
 	local capabilities      = get_u16(buf)
@@ -1009,7 +1006,6 @@ function mysql.connect(opt)
 	local client_flags = 0x3f7cf
 	local ssl_verify = opt.ssl_verify
 	local use_ssl = opt.ssl or ssl_verify
-
 	local buf = send_buffer(64)
 	if use_ssl then
 		check(self, band(capabilities, CLIENT_SSL) ~= 0, 'ssl disabled on server')
