@@ -964,9 +964,8 @@ function mysql.log(severity, ...)
 	logging.log(severity, 'mysql', ...)
 end
 
-function mysql.note(...)
-	mysql.log('note', ...)
-end
+function mysql.dbg  (...) mysql.log(''    , ...) end
+function mysql.note (...) mysql.log('note', ...) end
 
 function mysql.connect(opt)
 
@@ -1074,7 +1073,7 @@ end
 conn.close = protect(conn.close)
 
 local function send_query(self, query)
-	mysql.note('query', '%s', query)
+	mysql.dbg('query', '%s', query)
 	assert(self.state == 'ready')
 	self.packet_no = -1
 	local buf = send_buffer(1 + #query)
