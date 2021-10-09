@@ -958,7 +958,20 @@ end
 
 local get_collation --fw. decl.
 
+function mysql.log(severity, ...)
+	local logging = mysql.logging
+	if not logging then return end
+	logging.log(severity, 'mysql', ...)
+end
+
+function mysql.note(...)
+	mysql.log('note', ...)
+end
+
 function mysql.connect(opt)
+
+	mysql.note('connect', 'host=%s:%s user=%s schema=%s',
+		opt.host, opt.port or 3306, opt.user, opt.schema or '')
 
 	local tcp = opt and opt.tcp or require'sock'.tcp
 	local tcp = check_io(self, tcp())
@@ -1061,6 +1074,7 @@ end
 conn.close = protect(conn.close)
 
 local function send_query(self, query)
+	mysql.note('query', '%s', query)
 	assert(self.state == 'ready')
 	self.packet_no = -1
 	local buf = send_buffer(1 + #query)
