@@ -475,7 +475,7 @@ local to_lua = {
 	decimal   = tonumber,
 }
 function mysql.to_lua(v, col)
-	local to_lua = to_lua[col.type]
+	local to_lua = col.to_lua or to_lua[col.type]
 	if to_lua then
 		v = to_lua(v)
 	end
