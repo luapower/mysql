@@ -969,12 +969,16 @@ function mysql.note (...) mysql.log('note', ...) end
 
 function mysql.connect(opt)
 
+	local host = opt.host
+	local port = opt.port or 3306
+
 	mysql.note('connect', 'host=%s:%s user=%s schema=%s',
-		opt.host, opt.port or 3306, opt.user, opt.schema or '')
+		host, port, opt.user, opt.schema or '')
 
 	local tcp = opt and opt.tcp or require'sock'.tcp
-	local tcp = check_io(self, tcp())
-	local self = setmetatable({tcp = tcp}, conn_mt)
+	tcp = check_io(self, tcp())
+
+	local self = setmetatable({tcp = tcp, host = host, port = port}, conn_mt)
 
 	self.max_packet_size = opt.max_packet_size or 16 * 1024 * 1024 --16 MB
 	local ok, err
@@ -994,9 +998,7 @@ function mysql.connect(opt)
 		assert(self.collation, 'charset and/or collation required')
 	end
 
-	self.host = opt.host
-	self.port = opt.port or 3306
-	check_io(self, self.tcp:connect(self.host, self.port))
+	check_io(self, tcp:connect(host, port))
 
 	local typ, buf = recv_packet(self)
 	if typ == 'ERR' then
