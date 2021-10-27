@@ -1064,6 +1064,7 @@ conn.connect = protect(conn.connect)
 
 function conn:close()
 	if self.state then
+		mysql.note('close', 'host=%s:%s', self.host, self.port)
 		local buf = send_buffer(1)
 		set_u8(buf, COM_QUIT)
 		send_packet(self, buf)
