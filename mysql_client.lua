@@ -1385,7 +1385,7 @@ local qmap = {
 	['\26'] = '\\Z',
 	['\"' ] = '\\"',
 }
-function conn:quote(s)
+function conn:esc(s)
 	--MBCS that are not ASCII supersets need decoding for correct quoting.
 	assert(self.charset_is_ascii_superset, 'NYI')
 	return s:gsub('[\\\'%z\b\n\r\t\26\"]', qmap)

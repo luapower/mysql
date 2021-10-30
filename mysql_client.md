@@ -130,9 +130,9 @@ Free statement.
 
 The MySQL server version string.
 
-### `cn:quote(s) -> s`
+### `cn:esc(s) -> s`
 
-Quote literal string to be used in queries. Quoting only works if current
+Escape string to be used inside SQL string literals. This only works if current
 collation is known (ses `collation` arg on `connect()`).
 
 ### Multiple result set support
