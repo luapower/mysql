@@ -978,7 +978,7 @@ function mysql.connect(opt)
 	local tcp = opt and opt.tcp or require'sock'.tcp
 	tcp = check_io(self, tcp())
 
-	local self = setmetatable({tcp = tcp, host = host, port = port}, conn_mt)
+	local self = setmetatable({tcp = tcp, host = host, port = port, tracebacks = opt.tracebacks}, conn_mt)
 
 	self.max_packet_size = opt.max_packet_size or 16 * 1024 * 1024 --16 MB
 	local ok, err
