@@ -1130,6 +1130,11 @@ local function read_result(self, opt)
 	while true do
 		local typ, buf = recv_packet(self)
 
+		if typ == 'ERR' then
+			self.state = 'ready'
+			return nil, get_err_packet(buf)
+		end
+
 		if typ == 'EOF' then
 			local _, status_flags = get_eof_packet(buf)
 			if band(status_flags, SERVER_MORE_RESULTS_EXISTS) ~= 0 then
