@@ -947,9 +947,9 @@ end
 local function get_err_packet(buf)
 	buf(1) --status: ERR
 	local errno  = get_u16(buf)
-	local marker = get_u8(buf)
-	local sqlstate = strchar(marker) == '#' and get_bytes(buf, 5) or nil
 	local message = get_bytes(buf)
+	local sqlstate = message:sub(1, 1) == '#' and message:sub(2, 6) or nil
+	if sqlstate then message = message:sub(7) end
 	message = message:gsub('You have an error in your SQL syntax; '
 		..'check the manual that corresponds to your MySQL server version '
 		..'for the right syntax to use near ', 'Syntax error: ')
@@ -1412,7 +1412,7 @@ if not ... then --demo
 		})
 		print(conn.charset, conn.collation)
 		--pp(conn:query'select * from val where val = 1')
-		local stmt = conn:prepare('select min_price from vari where val = ?')
+		local stmt = assert(conn:prepare('select min_price from vari where val = ?'))
 		assert(stmt:exec())
 		pp(conn:read_result({datetime_format = '*t'}))
 		assert(stmt:free())
