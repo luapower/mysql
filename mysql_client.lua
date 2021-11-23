@@ -1176,7 +1176,7 @@ local function read_result(self, opt)
 					elseif bt == 'time' then
 						v = get_time(buf, time_format)
 					else
-						check(self, false, 'unsupported param type '..bt)
+						check(self, false, 'unsupported param type %s', bt)
 					end
 				else
 					v = null_value
@@ -1358,7 +1358,7 @@ function stmt:exec(...)
 				elseif bt == 'time' then
 					set_time(buf, val)
 				else
-					check(self, false, 'unsupported param type '..bt)
+					check(self, false, 'unsupported param type %s', bt)
 				end
 			end
 		end
