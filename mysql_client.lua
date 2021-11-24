@@ -30,7 +30,7 @@ local index = glue.index
 local repl = glue.repl
 local update = glue.update
 
-local check_io, check, protect = errors.tcp_protocol_errors'mysql'
+local check_io, checkp, _, protect = errors.tcp_protocol_errors'mysql'
 
 local mysql = {}
 
@@ -830,7 +830,7 @@ local function recv(self, sz)
 	local i = 0
 	return function(n, err)
 		n = n or sz-i
-		check(self, i + n <= sz, err or 'short read')
+		checkp(self, i + n <= sz, err or 'short read')
 		i = i + n
 		return buf, i-n, n
 	end
@@ -839,8 +839,8 @@ end
 local function recv_packet(self)
 	local buf = recv(self, 4) --packet header
 	local len = get_u24(buf)
-	check(self, len > 0, 'empty packet')
-	check(self, len <= self.max_packet_size, 'packet too big')
+	checkp(self, len > 0, 'empty packet')
+	checkp(self, len <= self.max_packet_size, 'packet too big')
 	self.packet_no = get_u8(buf)
 	local buf = recv(self, len)
 	local field_count = get_u8(buf)
@@ -927,7 +927,7 @@ local function recv_field_packets(self, field_count, field_attrs)
 	local fields = {}
 	for i = 1, field_count do
 		local typ, buf = recv_packet(self)
-		check(self, typ == 'DATA', 'bad packet type')
+		checkp(self, typ == 'DATA', 'bad packet type')
 		local field = get_field_packet(buf)
 		field.index = i
 		fields[i] = field
@@ -938,7 +938,7 @@ local function recv_field_packets(self, field_count, field_attrs)
 	end
 	if field_count > 0 then
 		local typ, buf = recv_packet(self)
-		check(self, typ == 'EOF', 'bad packet type')
+		checkp(self, typ == 'EOF', 'bad packet type')
 		get_eof_packet(buf)
 	end
 	return fields
@@ -1022,7 +1022,7 @@ function mysql.connect(opt)
 	local use_ssl = opt.ssl or ssl_verify
 	local buf = send_buffer(64)
 	if use_ssl then
-		check(self, band(capabilities, CLIENT_SSL) ~= 0, 'ssl disabled on server')
+		checkp(self, band(capabilities, CLIENT_SSL) ~= 0, 'SSL disabled on server')
 		set_u32(buf, bor(client_flags, CLIENT_SSL))
 		set_u32(buf, self.max_packet_size)
 		set_u8(buf, collation)
@@ -1045,7 +1045,7 @@ function mysql.connect(opt)
 	elseif typ == 'EOF' then
 		return nil, 'old pre-4.1 authentication protocol not supported'
 	end
-	check(self, typ == 'OK', 'bad packet type')
+	checkp(self, typ == 'OK', 'bad packet type')
 
 	self.to_lua = mysql.to_lua
 	self.state = 'ready'
@@ -1110,7 +1110,7 @@ local function read_result(self, opt)
 			return res
 		end
 	end
-	check(self, typ == 'DATA', 'bad packet type')
+	checkp(self, typ == 'DATA', 'bad packet type')
 
 	local field_count = get_uint(buf)
 	local extra = buf_len(buf) > 0 and get_uint(buf) or nil
@@ -1146,7 +1146,7 @@ local function read_result(self, opt)
 		local row = not to_array and {} or nil
 
 		if self.state == 'read_binary' then
-			check(get_u8(buf) == 0, 'invalid row packet')
+			checkp(get_u8(buf) == 0, 'invalid row packet')
 			local nulls_len = floor((#cols + 7 + 2) / 8)
 			local nulls, nulls_offset = buf(nulls_len)
 			for i, col in ipairs(cols) do
@@ -1176,7 +1176,7 @@ local function read_result(self, opt)
 					elseif bt == 'time' then
 						v = get_time(buf, time_format)
 					else
-						check(self, false, 'unsupported param type %s', bt)
+						checkp(self, false, 'unsupported param type %s', bt)
 					end
 				else
 					v = null_value
@@ -1260,7 +1260,7 @@ function conn:prepare(query, opt)
 	if typ == 'ERR' then
 		return nil, get_err_packet(buf)
 	end
-	check(self, typ == 'OK', 'bad packet type')
+	checkp(self, typ == 'OK', 'bad packet type')
 	buf(1) --status: OK
 	local stmt = update({conn = self}, stmt)
 	stmt.id            = get_u32(buf)
@@ -1358,7 +1358,7 @@ function stmt:exec(...)
 				elseif bt == 'time' then
 					set_time(buf, val)
 				else
-					check(self, false, 'unsupported param type %s', bt)
+					checkp(self, false, 'unsupported param type %s', bt)
 				end
 			end
 		end
