@@ -26,10 +26,10 @@ sock.run(function()
 		f5 bigint(5),
 		f6 float(2), /* (2) ignored */
 		f7 double, /* can't even give (2) here */
-		f8 timestamp,
-		f9 date,
+		f8 timestamp default current_timestamp,
+		f9 date default '1000-11-22 12:34:56',
 		f10 time,
-		f11 datetime,
+		f11 datetime default '1000-11-22 12:34:56',
 		f12 varchar(100),
 		f12a varchar(100) not null collate ascii_bin,
 		f13 char(100),
@@ -43,10 +43,14 @@ sock.run(function()
 		f21 mediumblob,
 		f22 longblob,
 		f23 blob,
-		f24 tinytext,
-		f25 mediumtext,
-		f26 longtext,
-		f27 text(5),
+		f24  tinytext,
+		f24a tinytext collate ascii_bin,
+		f25  mediumtext,
+		f25a mediumtext collate ascii_bin,
+		f26  longtext,
+		f26a longtext collate ascii_bin,
+		f27  text,
+		f27a text collate ascii_bin,
 		f28 varchar(10),
 		f29 char(10)
 	);
@@ -63,6 +67,7 @@ sock.run(function()
 			for _,k in ipairs(h) do
 				local v = col[k]
 				v = isnum(v) and fmt('%0.17g', v) or v
+				v = istab(v) and pp.format(v) or v
 				add(t, fmt('%20s', repl(v, nil, '')))
 			end
 			print(cat(t))
@@ -100,14 +105,20 @@ sock.run(function()
 		'name',
 		'mysql_type',
 		'mysql_display_type',
-		'type',
+		'size',
 		'display_width',
+		'mysql_charset',
+		'mysql_collation',
+		'type',
+		'min',
+		'max',
+		'digits',
 		'decimals',
 		'has_time',
 		'padded',
-		'mysql_charset',
+		'enum_values',
+		'default',
 		'mysql_display_charset',
-		'mysql_collation',
 		'mysql_display_collation',
 		'mysql_buffer_type',
 	})

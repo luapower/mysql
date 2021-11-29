@@ -954,7 +954,13 @@ local function get_field_packet(buf)
 		col.mysql_display_collation = collation
 		col.mysql_display_charset = charset
 		col.padded = mysql_type == 'char' or nil
-		col.display_width = math.ceil(display_size / (max_char_widths[charset] or 1))
+		--NOTE: mysql gives 4x display_size for tinytext, text and mediumtext
+		--(but not for longtext) on a utf8mb4 connection. bug?
+		local mcw = max_char_widths[charset] or 1
+		if mysql_type == 'text' and display_size <= 16777215 * mcw then
+			mcw = mcw * mcw
+		end
+		col.display_width = math.ceil(display_size / mcw)
 	end
 	col.mysql_display_type = mysql_type
 	col.mysql_buffer_type = buf_type --for param encoding
