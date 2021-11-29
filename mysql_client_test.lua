@@ -62,6 +62,7 @@ sock.run(function()
 			add(t, fmt('%20s', k))
 		end
 		print(cat(t))
+		print()
 		for _,col in ipairs(cols) do
 			local t = {}
 			for _,k in ipairs(h) do
