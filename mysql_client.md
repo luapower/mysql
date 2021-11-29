@@ -1,8 +1,10 @@
 
 ## `local mysql = require'mysql_client'`
 
-MySQL client protocol in Lua.
-Stolen from OpenResty, modified to work with [sock] and added prepared statements.
+MySQL client protocol in Lua. Ripped from OpenResty, modified to work with
+[sock], added prepared statements, better interpretation of field metadata
+(consistent with [sqlpp], [schema] and [xrowset][x-widges]), and other minor
+changes.
 
 ## Example
 
@@ -81,6 +83,7 @@ The `options` arg can contain:
   * `to_array  = true` -- return an array of values for single-column results.
   * `null_value = val` -- value to use for `null` (defaults to `nil`).
   * `to_lua = f(v, col) -> v` -- custom value converter.
+  * `field_attrs = {name -> attr}` -- extra field attributes.
 
 For queries that return a result set, it returns an array of rows.
 For other queries it returns a Lua table with information such as
@@ -99,8 +102,10 @@ the `sqlstate` return value contains the standard SQL error code that consists
 of 5 characters. Note that, the `errcode` and `sqlstate` might be `nil`
 if MySQL does not return them.
 
-NOTE: 64 bit integers and decimals are converted to Lua numbers by default.
+__NOTE:__ decimals and 64 bit integers are converted to Lua numbers by default.
 That limits the useful range of number types to 15 significant digits.
+If you have other needs, provide your own `to_lua` (which you can set at
+module, connection and query level, and even per field with `field_attrs`).
 
 ### `cn:query(query, [options]) -> res,nil,cols | nil,err,errcode,sqlstate`
 
@@ -110,7 +115,6 @@ and the first [read_result](#read_result) call.
 You should always check if the `err` return value  is `again` in case of
 success because this method will only call [read_result](#read_result)
 once for you.
-
 
 ### `cn:prepare(query, [opt]) -> stmt`
 
@@ -130,10 +134,15 @@ Free statement.
 
 The MySQL server version string.
 
+### `mysql.esc_utf8(s) -> s`
+
+Escape string to be used inside SQL string literals. Only works on connections
+for which the charset is ASCII or an ASCII superset (ascii, utf8).
+
 ### `cn:esc(s) -> s`
 
-Escape string to be used inside SQL string literals. This only works if current
-collation is known (ses `collation` arg on `connect()`).
+Escape string to be used inside SQL string literals. This only works
+if the current collation is known (see `collation` arg on `connect()`).
 
 ### Multiple result set support
 
