@@ -9,19 +9,14 @@ local sha1 = require'sha1'.sha1
 local glue = require'glue'
 local errors = require'errors'
 
-local sub = string.sub
-local strbyte = string.byte
-local strchar = string.char
 local format = string.format
-local strrep = string.rep
 local band = bit.band
-local bxor = bit.bxor
+local xor = bit.bxor
 local bor = bit.bor
 local shl = bit.lshift
 local shr = bit.rshift
-local tohex = bit.tohex
-local concat = table.concat
 local floor = math.floor
+local ceil = math.ceil
 local tonumber = tonumber
 
 local buffer = glue.buffer
@@ -795,7 +790,7 @@ local function set_token(buf, password, scramble)
 	set_u8(buf, n)
 	local p, pi = buf(n)
 	for i = 1, n do
-		 p[pi+i-1] = bxor(strbyte(stage3, i), strbyte(stage1, i))
+		 p[pi+i-1] = xor(stage3:byte(i), stage1:byte(i))
 	end
 end
 
@@ -884,6 +879,13 @@ function mysql.dec_range(digits, decimals, unsigned) --min, max, digits
 	return min, max, digits
 end
 
+--This is dumb: there's no such thing as "char length" with a MBCS but
+--that's how you have to declare a varchar these days.
+function mysql.char_size(byte_size, collation)
+	charset = collation:match'^[^_]+'
+	return floor(byte_size / max_char_widths[charset] + .5)
+end
+
 --NOTE: MySQL doesn't give enough metadata to generate a form in a UI,
 --you'll have to query `information_schema` to get the rest like enum values
 --and defaults. So we gather only what we need for display and for encoding
@@ -951,7 +953,7 @@ local function get_field_packet(buf)
 		if mysql_type == 'text' and display_size <= 16777215 * mcw then
 			mcw = mcw * mcw
 		end
-		col.display_width = math.ceil(display_size / mcw)
+		col.display_width = ceil(display_size / mcw)
 	end
 	col.mysql_display_type = mysql_type
 	col.mysql_buffer_type = buf_type --for param encoding
