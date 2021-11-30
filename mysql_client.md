@@ -61,11 +61,15 @@ The `options` argument is a Lua table holding the following keys:
   "ssl disabled on server" is returned.
   * `ssl_verify`: if `true`, then verifies the validity of the server SSL
   certificate (default is `false`).
-  * `to_lua = f(v, col) -> v` -- custom value converter (defaults to `mysql.to_lua`).
+  * `to_lua = f(v) -> v` -- custom value converter (defaults to `mysql.to_lua`).
 
-### `cn:close() -> 1 | nil,err`
+### `cn:close() -> true | nil,err`
 
 Closes the current mysql connection and returns the status.
+
+### `cn:closed() -> true | false`
+
+Check if the connection was closed.
 
 ### `cn:send_query(query) -> bytes | nil,err`
 
@@ -79,10 +83,14 @@ Reads in the next result set returned from the server.
 
 The `options` arg can contain:
 
-  * `compact   = true` -- return an array of arrays instead of an array of `{column->value}` maps.
+  * `compact = true` -- return an array of arrays instead of an array
+  of `{column->value}` maps
+    * __NOTE__: unless you set `null_value`, the rows in compact mode will
+    be sparse arrays so `ipairs(row)` and `#row` won't work on them
+    (but `#cols` will).
   * `to_array  = true` -- return an array of values for single-column results.
   * `null_value = val` -- value to use for `null` (defaults to `nil`).
-  * `to_lua = f(v, col) -> v` -- custom value converter.
+  * `to_lua = f(v) -> v` -- custom value converter (defaults to `cn.to_lua`).
   * `field_attrs = {name -> attr}` -- extra field attributes.
 
 For queries that return a result set, it returns an array of rows.
@@ -102,10 +110,11 @@ the `sqlstate` return value contains the standard SQL error code that consists
 of 5 characters. Note that, the `errcode` and `sqlstate` might be `nil`
 if MySQL does not return them.
 
-__NOTE:__ decimals and 64 bit integers are converted to Lua numbers by default.
-That limits the useful range of number types to 15 significant digits.
-If you have other needs, provide your own `to_lua` (which you can set at
-module, connection and query level, and even per field with `field_attrs`).
+__NOTE:__ Decimals with up to 15 digits of precision and 64 bit integers
+are converted to Lua numbers by default. That limits the useful range of
+integer types to 15 significant digits. If you have other needs, provide
+your own `to_lua` (which you can set atmodule, connection and query level,
+and even per field with `field_attrs`).
 
 ### `cn:query(query, [options]) -> res,nil,cols | nil,err,errcode,sqlstate`
 

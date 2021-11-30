@@ -99,7 +99,9 @@ sock.run(function()
 	local spp = require'sqlpp'.new()
 	require'sqlpp_mysql'
 	spp.import'mysql'
+
 	local cn = spp.connect(conn)
+
 	local rows, cols = cn:query({get_table_defs=1}, 'select * from test')
 	print()
 	pr(cols, {
@@ -119,11 +121,16 @@ sock.run(function()
 		'padded',
 		'enum_values',
 		'default',
+		'mysql_default',
 		'mysql_display_charset',
 		'mysql_display_collation',
 		'mysql_buffer_type',
 	})
-	--cn:close()
+
+	pp(rows)
+
+	cn:close()
+	assert(conn:closed())
 
 end)
 

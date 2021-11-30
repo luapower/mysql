@@ -482,18 +482,6 @@ function mysql.isconn(x)
 	return getmetatable(x) == conn_mt
 end
 
-local default_to_lua = {
-	tinyint   = tonumber,
-	smallint  = tonumber,
-	mediumint = tonumber,
-	int       = tonumber,
-	bigint    = tonumber,
-	year      = tonumber,
-	float     = tonumber,
-	double    = tonumber,
-	decimal   = tonumber,
-}
-
 local function return_arg1(v) return v end
 
 assert(ffi.abi'le')
@@ -898,7 +886,8 @@ end
 
 --NOTE: MySQL doesn't give enough metadata to generate a form in a UI,
 --you'll have to query `information_schema` to get the rest like enum values
---and defaults. So we gather only what we need for display, not for editing.
+--and defaults. So we gather only what we need for display and for encoding
+--params and decoding values in binary form, but not for editing.
 local function get_field_packet(buf)
 	local col = {}
 	local _              = get_name(buf) --always "def"
@@ -918,7 +907,7 @@ local function get_field_packet(buf)
 	if collation == 63 then --binary
 		mysql_type = bin_types[buf_type] or buf_type
 		local unsigned = band(flags, UNSIGNED_FLAG) ~= 0 or nil --for val decoding
-		if mysql_type == 'tinyint' or mysql_type == 'smallint'
+		if    mysql_type == 'tinyint'   or mysql_type == 'smallint'
 			or mysql_type == 'mediumint' or mysql_type == 'int'
 			or mysql_type == 'bigint'
 		then
@@ -926,7 +915,8 @@ local function get_field_packet(buf)
 			col.decimals = 0
 			col.unsigned = unsigned
 		elseif mysql_type == 'decimal' then
-			col.type = 'number'
+			local digits = display_size - (unsigned and 1 or 2)
+			col.type = digits > 15 and 'decimal' or 'number'
 			col.decimals = decimals
 			col.unsigned = unsigned
 		elseif mysql_type == 'float' then
@@ -948,6 +938,7 @@ local function get_field_packet(buf)
 		end
 		col.display_width = display_size
 	else
+		col.type = 'text'
 		mysql_type = text_types[buf_type] or buf_type
 		local collation = collation_names[collation]
 		local charset = collation and collation:match'^[^_]+'
@@ -975,7 +966,7 @@ local function recv_field_packets(self, field_count, field_attrs, to_lua)
 		local typ, buf = recv_packet(self)
 		checkp(self, typ == 'DATA', 'bad packet type')
 		local field = get_field_packet(buf)
-		field.to_lua = to_lua or default_to_lua[field.mysql_type]
+		field.to_lua = to_lua or (field.type == 'number' and tonumber or nil)
 		field.index = i
 		fields[i] = field
 		fields[field.name] = field
@@ -1126,6 +1117,10 @@ function conn:close()
 end
 conn.close = protect(conn.close)
 
+function conn:closed()
+	return not self.state
+end
+
 local function send_query(self, query)
 	mysql.dbg('query', '%s', query)
 	assert(self.state == 'ready')
@@ -1228,6 +1223,10 @@ local function read_result(self, opt)
 					else
 						checkp(self, false, 'unsupported param type %s', bt)
 					end
+					local to_lua = col.to_lua
+					if to_lua then
+						v = to_lua(v)
+					end
 				else
 					v = null_value
 				end
@@ -1245,7 +1244,7 @@ local function read_result(self, opt)
 				if v ~= nil then
 					local to_lua = col.to_lua
 					if to_lua then
-						v = to_lua(v, col)
+						v = to_lua(v)
 					end
 				else
 					v = null_value
