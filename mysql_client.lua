@@ -879,8 +879,8 @@ function mysql.dec_range(digits, decimals, unsigned) --min, max, digits
 	return min, max, digits
 end
 
---This is dumb: there's no such thing as "char length" with a MBCS but
---that's how you have to declare a varchar these days.
+--This is dumb: there's no such thing as "char length" on a variable-width
+--MBCS but that's how you have to declare a varchar these days.
 function mysql.char_size(byte_size, collation)
 	charset = collation:match'^[^_]+'
 	local mcw = max_char_widths[charset]
