@@ -16,7 +16,7 @@ assert(mysql.connect{
 	port = 3306,
 	user = 'bar',
 	password = 'baz',
-	schema = 'foo',
+	db = 'foo',
 	charset = 'utf8mb4',
 	max_packet_size = 1024 * 1024,
 })
@@ -50,7 +50,7 @@ The `options` argument is a Lua table holding the following keys:
   * `port`: server's port (optional, defaults to 3306).
   * `user`: user name.
   * `password`: password (optional).
-  * `schema`: the schema to set as current schema (optional).
+  * `db`: the database to set as current database (optional).
   * `collation`: the collation used for the connection (`charset` is implied by this).
    * use `'server'` to get the server's collation and charset for the connection.
   * `charset`: the character set used for the connection.
@@ -61,7 +61,7 @@ The `options` argument is a Lua table holding the following keys:
   "ssl disabled on server" is returned.
   * `ssl_verify`: if `true`, then verifies the validity of the server SSL
   certificate (default is `false`).
-  * `to_lua = f(v) -> v` -- custom value converter (defaults to `mysql.to_lua`).
+  * `to_lua = f(v, col) -> v` -- custom value converter (defaults to `mysql.to_lua`).
 
 ### `cn:close() -> true | nil,err`
 
@@ -90,7 +90,7 @@ The `options` arg can contain:
     (but `#cols` will).
   * `to_array  = true` -- return an array of values for single-column results.
   * `null_value = val` -- value to use for `null` (defaults to `nil`).
-  * `to_lua = f(v) -> v` -- custom value converter (defaults to `cn.to_lua`).
+  * `to_lua = f(v, col) -> v` -- custom value converter (defaults to `cn.to_lua`).
   * `field_attrs = {name -> attr}` -- extra field attributes.
 
 For queries that return a result set, it returns an array of rows.
@@ -113,7 +113,7 @@ if MySQL does not return them.
 __NOTE:__ Decimals with up to 15 digits of precision and 64 bit integers
 are converted to Lua numbers by default. That limits the useful range of
 integer types to 15 significant digits. If you have other needs, provide
-your own `to_lua` (which you can set atmodule, connection and query level,
+your own `to_lua` (which you can set at module, connection and query level,
 and even per field with `field_attrs`).
 
 ### `cn:query(query, [options]) -> res,nil,cols | nil,err,errcode,sqlstate`

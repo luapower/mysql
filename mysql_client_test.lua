@@ -11,7 +11,7 @@ sock.run(function()
 		port = 3307,
 		user = 'root',
 		password = 'root',
-		schema = 'sp',
+		db = 'sp',
 		collation = 'server',
 	})
 

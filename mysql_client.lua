@@ -883,7 +883,8 @@ end
 --that's how you have to declare a varchar these days.
 function mysql.char_size(byte_size, collation)
 	charset = collation:match'^[^_]+'
-	return floor(byte_size / max_char_widths[charset] + .5)
+	local mcw = max_char_widths[charset]
+	return mcw and floor(byte_size / mcw + .5) or byte_size
 end
 
 --NOTE: MySQL doesn't give enough metadata to generate a form in a UI,
@@ -893,7 +894,7 @@ end
 local function get_field_packet(buf)
 	local col = {}
 	local _              = get_name(buf) --always "def"
-	col.schema           = get_name(buf)
+	col.db               = get_name(buf)
 	col.table_alias      = get_name(buf)
 	col.table            = get_name(buf) --name of origin table
 	col.name             = get_name(buf) --alias column name
@@ -961,6 +962,8 @@ local function get_field_packet(buf)
 	return col
 end
 
+local function tonum(x) return tonumber(x) end
+
 local function recv_field_packets(self, field_count, field_attrs, to_lua)
 	local fields = {}
 	to_lua = to_lua or self.to_lua
@@ -968,7 +971,7 @@ local function recv_field_packets(self, field_count, field_attrs, to_lua)
 		local typ, buf = recv_packet(self)
 		checkp(self, typ == 'DATA', 'bad packet type')
 		local field = get_field_packet(buf)
-		field.to_lua = to_lua or (field.type == 'number' and tonumber or nil)
+		field.to_lua = to_lua or (field.type == 'number' and tonum or nil)
 		field.index = i
 		fields[i] = field
 		fields[field.name] = field
@@ -1016,8 +1019,8 @@ function mysql.connect(opt)
 	local host = opt.host
 	local port = opt.port or 3306
 
-	mysql.note('connect', 'host=%s:%s user=%s schema=%s',
-		host, port, opt.user, opt.schema or '')
+	mysql.note('connect', 'host=%s:%s user=%s db=%s',
+		host, port, opt.user, opt.db or '')
 
 	local tcp = opt and opt.tcp or require'sock'.tcp
 	tcp = check_io(self, tcp())
@@ -1080,7 +1083,7 @@ function mysql.connect(opt)
 	buf(23)
 	set_cstring(buf, opt.user or '')
 	set_token(buf, opt.password, scramble)
-	set_cstring(buf, opt.schema or '')
+	set_cstring(buf, opt.db or '')
 	send_packet(self, buf)
 
 	local typ, buf = recv_packet(self)
@@ -1099,7 +1102,7 @@ function mysql.connect(opt)
 	end
 
 	self.charset_is_ascii_superset = self.charset and not mb_charsets[self.charset]
-	self.schema = opt.schema
+	self.db = opt.db
 	self.user = opt.user
 
 	return self
@@ -1227,7 +1230,7 @@ local function read_result(self, opt)
 					end
 					local to_lua = col.to_lua
 					if to_lua then
-						v = to_lua(v)
+						v = to_lua(v, col)
 					end
 				else
 					v = null_value
@@ -1246,7 +1249,7 @@ local function read_result(self, opt)
 				if v ~= nil then
 					local to_lua = col.to_lua
 					if to_lua then
-						v = to_lua(v)
+						v = to_lua(v, col)
 					end
 				else
 					v = null_value
@@ -1283,13 +1286,13 @@ end
 conn.get_collation = protect(get_collation)
 
 do
-local function pass(self, schema, ret, ...)
+local function pass(self, db, ret, ...)
 	if not ret then return nil, ... end
-	self.schema = schema
+	self.db = db
 	return ret, ...
 end
-function conn:use(schema)
-	return pass(self, schema, self:query('use `' .. schema .. '`'))
+function conn:use(db)
+	return pass(self, db, self:query('use `' .. db .. '`'))
 end
 end
 
