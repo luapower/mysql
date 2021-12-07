@@ -964,7 +964,7 @@ end
 
 local function tonum(x) return tonumber(x) end
 
-local function recv_field_packets(self, field_count, field_attrs, to_lua)
+local function recv_field_packets(self, field_count, field_attrs, opt)
 	local fields = {}
 	to_lua = to_lua or self.to_lua
 	for i = 1, field_count do
@@ -975,14 +975,21 @@ local function recv_field_packets(self, field_count, field_attrs, to_lua)
 		field.index = i
 		fields[i] = field
 		fields[field.name] = field
-		if field_attrs then
-			update(field, field_attrs[field.name])
-		end
 	end
 	if field_count > 0 then
 		local typ, buf = recv_packet(self)
 		checkp(self, typ == 'EOF', 'bad packet type')
 		get_eof_packet(buf)
+	end
+	if type(field_attrs) == 'function' then
+		field_attrs = field_attrs(self, fields, opt)
+	end
+	if field_attrs then
+		for name, attrs in pairs(field_attrs) do
+			if cols[name] then
+				update(cols[name], attrs)
+			end
+		end
 	end
 	return fields
 end
@@ -1157,9 +1164,9 @@ local function read_result(self, opt)
 	checkp(self, typ == 'DATA', 'bad packet type')
 
 	local field_count = get_uint(buf)
-	local extra = buf_len(buf) > 0 and get_uint(buf) or nil
+	local extra = buf_len(buf) > 0 and get_uint(buf) or nil --not used.
 
-	local cols = recv_field_packets(self, field_count, opt and opt.field_attrs, opt and opt.to_lua)
+	local cols = recv_field_packets(self, field_count, opt and opt.field_attrs, opt)
 
 	local compact         = opt and opt.compact
 	local to_array        = opt and opt.to_array and #cols == 1
@@ -1312,8 +1319,8 @@ function conn:prepare(query, opt)
 	local param_count  = get_u16(buf)
 	buf(1) --filler
 	stmt.warning_count = get_u16(buf)
-	stmt.params = recv_field_packets(self, param_count, opt and opt.param_attrs, opt and opt.to_lua)
-	stmt.cols   = recv_field_packets(self, col_count  , opt and opt.field_attrs, opt and opt.to_lua)
+	stmt.params = recv_field_packets(self, param_count, opt and opt.param_attrs, opt)
+	stmt.cols   = recv_field_packets(self, col_count  , opt and opt.field_attrs, opt)
 	stmt.cursor = assert(cursor_types[opt and opt.cursor or 'none'])
 	return stmt
 end

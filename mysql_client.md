@@ -90,8 +90,10 @@ The `options` arg can contain:
     (but `#cols` will).
   * `to_array  = true` -- return an array of values for single-column results.
   * `null_value = val` -- value to use for `null` (defaults to `nil`).
-  * `to_lua = f(v, col) -> v` -- custom value converter (defaults to `cn.to_lua`).
-  * `field_attrs = {name -> attr}` -- extra field attributes.
+  * `field_attrs = {name -> attr}` -- extra field attributes. can also be
+  a function which will be called with `field_attrs(cn, fields, opt)`
+  as soon as field metadata is received but before rows are received
+  (so you can even set a custom `to_lua` to certain fields).
 
 For queries that return a result set, it returns an array of rows.
 For other queries it returns a Lua table with information such as
@@ -113,8 +115,8 @@ if MySQL does not return them.
 __NOTE:__ Decimals with up to 15 digits of precision and 64 bit integers
 are converted to Lua numbers by default. That limits the useful range of
 integer types to 15 significant digits. If you have other needs, provide
-your own `to_lua` (which you can set at module, connection and query level,
-and even per field with `field_attrs`).
+your own `to_lua` (which you can set at module or connection level, and even
+per query with `field_attrs`).
 
 ### `cn:query(query, [options]) -> res,nil,cols | nil,err,errcode,sqlstate`
 
