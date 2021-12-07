@@ -999,8 +999,6 @@ local function get_err_packet(buf)
 	return message, errno, sqlstate
 end
 
-local get_collation --fw. decl.
-
 function mysql.log(severity, ...)
 	local logging = mysql.logging
 	if not logging then return end
@@ -1030,20 +1028,19 @@ function mysql.connect(opt)
 	self.max_packet_size = opt.max_packet_size or 16 * 1024 * 1024 --16 MB
 	local ok, err
 
-	local collation = 0 --default
-	if opt.collation ~= 'server' then
-		if opt.collation then
-			collation = assert(collation_codes[opt.collation], 'invalid collation')
-			self.collation = opt.collation
-			self.charset = self.collation:match'^[^_]+'
-		elseif opt.charset then
-			local collation_name = assert(default_collations[opt.charset], 'invalid charset')
-			collation = assert(collation_codes[collation_name])
-			self.charset = opt.charset
-			self.collation = collation_name
-		end
-		assert(self.collation, 'charset and/or collation required')
+	local collation
+	if opt.collation then
+		collation = assert(collation_codes[opt.collation], 'invalid collation')
+		self.collation = opt.collation
+		self.charset = self.collation:match'^[^_]+'
+		assert(not opt.charset or opt.charset == self.charset, 'supplied charset does not match collation')
+	elseif opt.charset then
+		local collation_name = assert(default_collations[opt.charset], 'invalid charset')
+		collation = assert(collation_codes[collation_name])
+		self.charset = opt.charset
+		self.collation = collation_name
 	end
+	assert(self.collation, 'charset or collation required')
 
 	check_io(self, tcp:connect(host, port))
 
@@ -1096,10 +1093,6 @@ function mysql.connect(opt)
 
 	self.to_lua = mysql.to_lua
 	self.state = 'ready'
-
-	if opt.collation == 'server' then
-		self.collation, self.charset = get_collation(self)
-	end
 
 	self.charset_is_ascii_superset = self.charset and not mb_charsets[self.charset]
 	self.db = opt.db
@@ -1278,12 +1271,6 @@ local function query(self, sql, opt)
 	return read_result(self, opt)
 end
 conn.query = protect(query)
-
---[[local]] function get_collation(self)
-	local t = query(self, 'select @@collation_connection cl, @@character_set_connection cs')[1]
-	return t.cl, t.cs
-end
-conn.get_collation = protect(get_collation)
 
 do
 local function pass(self, db, ret, ...)

@@ -12,7 +12,7 @@ sock.run(function()
 		user = 'root',
 		password = 'root',
 		db = 'sp',
-		collation = 'server',
+		charset = 'utf8mb4',
 	})
 
 	assert(conn:query[[

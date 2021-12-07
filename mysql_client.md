@@ -51,10 +51,10 @@ The `options` argument is a Lua table holding the following keys:
   * `user`: user name.
   * `password`: password (optional).
   * `db`: the database to set as current database (optional).
-  * `collation`: the collation used for the connection (`charset` is implied by this).
-   * use `'server'` to get the server's collation and charset for the connection.
-  * `charset`: the character set used for the connection.
-   * if `collation` not set, the default collation for the charset is selected.
+  * `charset`: the character set used for the connection (required, see below).
+  * `collation`: the collation used for the connection (required, see below).
+   * if only `charset` is given, the default collation for the charset is set automatically.
+   * if `collation` is given, `charset` is set automatically and must not be supplied.
   * `max_packet_size`: the upper limit for the reply packets sent from the server (defaults to 16 MB).
   * `ssl`: if `true`, then uses SSL to connect to MySQL (defaults to `false`).
   If the server does not have SSL support (or just disabled), the error string
@@ -150,8 +150,7 @@ for which the charset is ASCII or an ASCII superset (ascii, utf8).
 
 ### `cn:esc(s) -> s`
 
-Escape string to be used inside SQL string literals. This only works
-if the current collation is known (see `collation` arg on `connect()`).
+Escape string to be used inside SQL string literals.
 
 ### Multiple result set support
 
