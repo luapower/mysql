@@ -3,6 +3,8 @@
 --Written by Cosmin Apreutesei. Public domain.
 --Original code by Yichun Zhang (agentzh). BSD license.
 
+if not ... then require'mysql_client_test'; return end
+
 local ffi = require'ffi'
 local bit = require'bit'
 local sha1 = require'sha1'.sha1

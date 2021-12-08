@@ -69,10 +69,11 @@ sock.run(function()
 				local v = col[k]
 				v = isnum(v) and fmt('%0.17g', v) or v
 				v = istab(v) and pp.format(v) or v
-				add(t, fmt('%20s', repl(v, nil, '')))
+				add(t, fmt('%-20s', repl(v, nil, '')))
 			end
 			print(cat(t))
 		end
+		print()
 	end
 
 	--pp(conn:query'select * from val where val = 1')
@@ -96,40 +97,8 @@ sock.run(function()
 	})
 	assert(stmt:free())
 
-	local spp = require'sqlpp'.new()
-	require'sqlpp_mysql'
-	spp.import'mysql'
+	conn:close()
 
-	local cn = spp.connect(conn)
-
-	local rows, cols = cn:query({get_table_defs=1}, 'select * from test')
-	print()
-	pr(cols, {
-		'name',
-		'mysql_type',
-		'mysql_display_type',
-		'size',
-		'display_width',
-		'mysql_charset',
-		'mysql_collation',
-		'type',
-		'min',
-		'max',
-		'digits',
-		'decimals',
-		'has_time',
-		'padded',
-		'enum_values',
-		'default',
-		'mysql_default',
-		'mysql_display_charset',
-		'mysql_display_collation',
-		'mysql_buffer_type',
-	})
-
-	pp(rows)
-
-	cn:close()
 	assert(conn:closed())
 
 end)
