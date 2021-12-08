@@ -90,10 +90,10 @@ The `options` arg can contain:
     (but `#cols` will).
   * `to_array  = true` -- return an array of values for single-column results.
   * `null_value = val` -- value to use for `null` (defaults to `nil`).
-  * `field_attrs = {name -> attr}` -- extra field attributes. can also be
-  a function which will be called with `field_attrs(cn, fields, opt)`
+  * `field_attrs = {name -> attr}` -- extra field attributes. It can also be
+  a function which will be called as `field_attrs(cn, fields, opt)`
   as soon as field metadata is received but before rows are received
-  (so you can even set a custom `to_lua` to certain fields).
+  (so you can even set a custom `to_lua` for particular fields).
 
 For queries that return a result set, it returns an array of rows.
 For other queries it returns a Lua table with information such as
