@@ -1027,7 +1027,7 @@ function mysql.connect(opt)
 	local port = opt.port or 3306
 
 	mysql.note('connect', 'host=%s:%s user=%s db=%s',
-		host, port, opt.user, opt.db or '')
+		host, port, opt.user or '', opt.db or '')
 
 	local tcp = opt and opt.tcp or require'sock'.tcp
 	tcp = check_io(self, tcp())
@@ -1088,7 +1088,7 @@ function mysql.connect(opt)
 	set_u8(buf, collation)
 	buf(23)
 	set_cstring(buf, opt.user or '')
-	set_token(buf, opt.password, scramble)
+	set_token(buf, opt.password or '', scramble)
 	set_cstring(buf, opt.db or '')
 	send_packet(self, buf)
 
