@@ -3,8 +3,7 @@
 
 MySQL client protocol in Lua. Ripped from OpenResty, modified to work with
 [sock], added prepared statements, better interpretation of field metadata
-(consistent with [sqlpp], [schema] and [xrowset][x-widges]), and other minor
-changes.
+(consistent with [sqlpp], [schema] and [x-widges]), and other minor changes.
 
 ## Example
 
