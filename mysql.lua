@@ -3,7 +3,7 @@
 --Written by Cosmin Apreutesei. Public domain.
 --Original code by Yichun Zhang (agentzh). BSD license.
 
-if not ... then require'mysql_client_test'; return end
+if not ... then require'mysql_test'; return end
 
 local ffi = require'ffi'
 local bit = require'bit'
@@ -973,7 +973,7 @@ local function recv_field_packets(self, field_count, field_attrs, opt)
 		local typ, buf = recv_packet(self)
 		checkp(self, typ == 'DATA', 'bad packet type')
 		local field = get_field_packet(buf)
-		field.to_lua = to_lua or (field.type == 'number' and tonum or nil)
+		field.mysql_to_lua = to_lua or (field.type == 'number' and tonum or nil)
 		field.index = i
 		fields[i] = field
 		fields[field.name] = field
@@ -1023,10 +1023,10 @@ function mysql.connect(opt)
 		return opt
 	end
 
-	local host = opt.host
+	local host = opt.host or '127.0.0.1'
 	local port = opt.port or 3306
 
-	mysql.note('connect', 'host=%s:%s user=%s db=%s',
+	mysql.note('connect', '%s:%s user=%s db=%s',
 		host, port, opt.user or '', opt.db or '')
 
 	local tcp = opt and opt.tcp or require'sock'.tcp
@@ -1113,7 +1113,7 @@ conn.connect = protect(conn.connect)
 
 function conn:close()
 	if self.state then
-		mysql.note('close', 'host=%s:%s', self.host, self.port)
+		mysql.note('close', '%s:%s', self.host, self.port)
 		local buf = send_buffer(1)
 		set_u8(buf, COM_QUIT)
 		send_packet(self, buf)
@@ -1230,7 +1230,7 @@ local function read_result(self, opt)
 					else
 						checkp(self, false, 'unsupported param type %s', bt)
 					end
-					local to_lua = col.to_lua
+					local to_lua = col.mysql_to_lua
 					if to_lua then
 						v = to_lua(v, col)
 					end
@@ -1249,7 +1249,7 @@ local function read_result(self, opt)
 			for i, col in ipairs(cols) do
 				local v = get_str(buf)
 				if v ~= nil then
-					local to_lua = col.to_lua
+					local to_lua = col.mysql_to_lua
 					if to_lua then
 						v = to_lua(v, col)
 					end

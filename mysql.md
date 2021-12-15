@@ -1,5 +1,5 @@
 
-## `local mysql = require'mysql_client'`
+## `local mysql = require'mysql'`
 
 MySQL client protocol in Lua. Ripped from OpenResty, modified to work with
 [sock], added prepared statements, better interpretation of field metadata
@@ -9,7 +9,7 @@ changes.
 ## Example
 
 ```lua
-local mysql = require'mysql_client'
+local mysql = require'mysql'
 
 assert(mysql.connect{
 	host = '127.0.0.1',
@@ -93,7 +93,7 @@ The `options` arg can contain:
   * `field_attrs = {name -> attr}` -- extra field attributes. It can also be
   a function which will be called as `field_attrs(cn, fields, opt)`
   as soon as field metadata is received but before rows are received
-  (so you can even set a custom `to_lua` for particular fields).
+  (so you can even set a custom `mysql_to_lua` for particular fields).
 
 For queries that return a result set, it returns an array of rows.
 For other queries it returns a Lua table with information such as
@@ -115,8 +115,9 @@ if MySQL does not return them.
 __NOTE:__ Decimals with up to 15 digits of precision and 64 bit integers
 are converted to Lua numbers by default. That limits the useful range of
 integer types to 15 significant digits. If you have other needs, provide
-your own `to_lua` (which you can set at module or connection level, and even
-per query with `field_attrs`).
+your own `to_lua` (which you can set at module or connection level,
+per query in `field_attrs`, or in a [schema] column definition with
+the `mysql_to_lua` attribute).
 
 ### `cn:query(query, [options]) -> res,nil,cols | nil,err,errcode,sqlstate`
 

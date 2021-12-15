@@ -1,5 +1,5 @@
 
-local mysql = require'mysql_client'
+local mysql = require'mysql'
 local sock = require'sock'
 local pp = require'pp'
 require'$'
