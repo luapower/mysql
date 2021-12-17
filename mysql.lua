@@ -21,8 +21,8 @@ local floor = math.floor
 local ceil = math.ceil
 local tonumber = tonumber
 
-local buffer = glue.buffer
 local dynarray = glue.dynarray
+local u8a = glue.u8a
 local index = glue.index
 local repl = glue.repl
 local update = glue.update
@@ -797,7 +797,7 @@ local function set_token(buf, password, scramble)
 end
 
 local function send_buffer(min_capacity)
-	local arr = dynarray('uint8_t[?]', min_capacity)
+	local arr = dynarray(u8a, min_capacity)
 	local i = 0
 	return function(n)
 		local p = arr(i+n)
